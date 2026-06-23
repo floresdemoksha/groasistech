@@ -17,7 +17,7 @@ Inspirado en ecosistemas de análisis de datos críticos, el fondo no es un lien
 
 ## 2. Tipografía: Densidad y Matemática
 Se prohíben las fuentes decorativas. La tipografía es la principal herramienta de autoridad.
-* **Primary Display (Títulos de Patentes/Secciones):** *Inter* o *Helvetica Neue*. 
+* **Primary Display (Títulos de Patentes/Secciones):** *Space Grotesk* o *Helvetica Neue*. 
   * Regla: `font-weight: 600`, `letter-spacing: -0.02em`. Debe verse compacto y denso.
 * **Technical Monospace (Fichas Técnicas/Telemetría):** *SF Mono*, *JetBrains Mono* o *Consolas*. 
   * Uso: Para todas las métricas de hardware, números de registro de las patentes, coeficientes físicos y UI del HUD.
@@ -61,6 +61,12 @@ Cero físicas elásticas, cero rebotes. Las animaciones simulan equipos táctico
 ### C. Digital Patent Carousel (The Warp Speed Interface)
 * **Maquetación:** Sistema de grilla horizontal (overflow-x) que rompe el contenedor principal. 
 * **Interactividad:** El *scroll* debe sentirse pesado pero preciso. Cada tarjeta visible es una patente secundaria con metadatos técnicos altamente densos condensados en un espacio reducido.
+
+### D. Header / Barra Superior del Hero
+* **Posición:** Full-bleed, sticky (`position: fixed`), z-index alto para flotar sobre el video.
+* **Glassmorphism (Excepción Deliberada):** La barra del Hero usa `backdrop-filter: blur(12px)` con fondo semitransparente oscuro (`rgba(0,0,0,0.45)`). Esta excepción aplica **únicamente a la barra del Hero**, no a toda la interfaz. El blur permite que el video de fondo se perciba difuminado, manteniendo legibilidad.
+* **Estructura:** Izquierda: wordmark "Groasis Tech". Derecha: disparador del Intelligence Vault (ícono de menú con borde 1px). **Prohibido:** botón "Get Started", ícono de búsqueda/lupa.
+* **Bordes:** 1px inferior (`--color-border`). Cero `box-shadow`.
 
 ## 7. Estándares de Codificación de Interfaz (Frontend)
 * Todas las cajas (`div`, `section`) deben tener `border-radius: 0px` o un máximo absoluto de `2px`. Las esquinas afiladas comunican precisión industrial.

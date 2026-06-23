@@ -1,26 +1,106 @@
 @import "tailwindcss";
 
+/* ============================================
+   GROASIS TECH — Design System Tokens
+   Fuente: DESIGN_SYSTEM.md v2.2
+   ============================================ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Ontologia del Color (Dark Mode Nativo) */
+  --color-void: #000000;
+  --color-vault: #0b0e11;
+  --color-vault-elevated: #111418;
+  --color-border: rgba(255, 255, 255, 0.12);
+  --color-accent: #00b3a4;
+  --color-text: #ffffff;
+  --color-text-muted: rgba(255, 255, 255, 0.6);
+
+  /* Sistema Espacial (8px Grid) */
+  --space-1: 8px;
+  --space-2: 16px;
+  --space-3: 24px;
+  --space-4: 32px;
+  --space-6: 48px;
+  --space-8: 64px;
+  --space-12: 96px;
+
+  /* Cinetica y Transiciones (Grado Militar) */
+  --timing-instant: 80ms;
+  --timing-base: 120ms;
+  --timing-vault: 150ms;
+  --easing-out: cubic-bezier(0, 0, 0.2, 1);
+
+  /* Tipografia — fallbacks, las fuentes reales se definen en html */
+  --letter-spacing-tight: -0.02em;
+
+  /* Estandares de Interfaz */
+  --radius-none: 0px;
+  --radius-minimal: 2px;
+  --border-width: 1px;
 }
 
+/* Tailwind v4 Theme Integration */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-void: var(--color-void);
+  --color-vault: var(--color-vault);
+  --color-vault-elevated: var(--color-vault-elevated);
+  --color-border: var(--color-border);
+  --color-accent: var(--color-accent);
+  --color-text: var(--color-text);
+  --color-text-muted: var(--color-text-muted);
+
+  --font-sans: var(--font-display);
+  --font-mono: var(--font-mono);
+
+  --spacing-1: var(--space-1);
+  --spacing-2: var(--space-2);
+  --spacing-3: var(--space-3);
+  --spacing-4: var(--space-4);
+  --spacing-6: var(--space-6);
+  --spacing-8: var(--space-8);
+  --spacing-12: var(--space-12);
+
+  --transition-instant: var(--timing-instant) var(--easing-out);
+  --transition-base: var(--timing-base) var(--easing-out);
+  --transition-vault: var(--timing-vault) var(--easing-out);
+
+  --radius-none: var(--radius-none);
+  --radius-minimal: var(--radius-minimal);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Base Styles */
+html {
+  /* Fuentes: se definen aquí para heredar de las clases de next/font */
+  --font-display: var(--font-space-grotesk), "Helvetica Neue", sans-serif;
+  --font-mono: var(--font-jetbrains), "SF Mono", "Consolas", monospace;
+
+  background-color: var(--color-void);
+  color: var(--color-text);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--color-void);
+  color: var(--color-text);
+  font-family: var(--font-display);
+  letter-spacing: var(--letter-spacing-tight);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Reset border-radius global */
+*,
+*::before,
+*::after {
+  border-radius: var(--radius-none);
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
