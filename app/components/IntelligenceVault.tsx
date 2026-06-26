@@ -18,26 +18,35 @@ const PLATFORMS: NavItem[] = [
 ];
 
 const PAGE_LINKS: NavItem[] = [
-  { id: "who-we-are",       name: "Who We Are",       desc: "The research arm behind 60+ patents across three sovereign domains." },
+  { id: "who-we-are",        name: "Who We Are",        desc: "The research arm behind 60+ patents across three sovereign domains." },
   { id: "technical-archive", name: "Technical Archive", desc: "Patent registry. Analytical isometry." },
-  { id: "deployments",      name: "Deployments",      desc: "Validation records. Field data." },
-  { id: "contact",          name: "Contact",          desc: "Get in touch with the Groasis Tech team." },
+  { id: "deployments",       name: "Deployments",       desc: "Validation records. Field data." },
+  { id: "contact",           name: "Contact",           desc: "Get in touch with the Groasis Tech team." },
+];
+
+const UTILITY_LINKS = [
+  { id: "news-press",         name: "News / Press" },
+  { id: "investor-relations", name: "Investor Relations" },
+  { id: "privacy",            name: "Privacy" },
+  { id: "legal-terms",        name: "Legal / Terms" },
 ];
 
 const EASE = "cubic-bezier(0, 0, 0.2, 1)";
 
 const PLATFORM_TEXT: React.CSSProperties = {
   fontFamily: "var(--font-display)",
-  fontSize: "40px",
+  fontSize: "36px",
   fontWeight: 600,
   letterSpacing: "-0.02em",
   color: "#ffffff",
   lineHeight: 1.1,
 };
 
-const PAGE_LINK_TEXT: React.CSSProperties = {
+// Single style for all 8 navigation links (page links + utility links).
+// Mono is reserved for section labels and technical metadata only.
+const LINK_TEXT: React.CSSProperties = {
   fontFamily: "var(--font-display)",
-  fontSize: "20px",
+  fontSize: "17px",
   fontWeight: 400,
   letterSpacing: "-0.01em",
   color: "#ffffff",
@@ -54,12 +63,14 @@ export function IntelligenceVault({ isOpen, onClose, triggerRef }: Props) {
   const [selectedId, setSelectedId]           = useState<string>("gt-aero");
   const [indicatorTop, setIndicatorTop]       = useState(0);
   const [indicatorHeight, setIndicatorHeight] = useState(0);
+  const [hoveredLinkId, setHoveredLinkId]     = useState<string | null>(null);
+  const [reducedMotion, setReducedMotion]     = useState(false);
 
   const panelRef     = useRef<HTMLDivElement>(null);
   const platformRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const wasOpenRef   = useRef(false);
-  const [reducedMotion, setReducedMotion] = useState(false);
 
+  // ── prefers-reduced-motion ────────────────────────────────────────────────
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
     setReducedMotion(mq.matches);
@@ -68,14 +79,17 @@ export function IntelligenceVault({ isOpen, onClose, triggerRef }: Props) {
     return () => mq.removeEventListener("change", h);
   }, []);
 
-  // Scroll lock + reset selection on open
+  // ── scroll lock + reset on open ──────────────────────────────────────────
   useEffect(() => {
     document.body.style.overflow = isOpen ? "hidden" : "";
-    if (isOpen) setSelectedId("gt-aero");
+    if (isOpen) {
+      setSelectedId("gt-aero");
+      setHoveredLinkId(null);
+    }
     return () => { document.body.style.overflow = ""; };
   }, [isOpen]);
 
-  // Esc key
+  // ── Esc key ───────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!isOpen) return;
     const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -83,7 +97,7 @@ export function IntelligenceVault({ isOpen, onClose, triggerRef }: Props) {
     return () => document.removeEventListener("keydown", h);
   }, [isOpen, onClose]);
 
-  // Focus management
+  // ── focus management ──────────────────────────────────────────────────────
   useEffect(() => {
     if (isOpen) {
       wasOpenRef.current = true;
@@ -101,7 +115,10 @@ export function IntelligenceVault({ isOpen, onClose, triggerRef }: Props) {
     }
   }, [isOpen, reducedMotion, triggerRef]);
 
-  // Measure indicator against selected platform button
+  // ── platform indicator measurement ───────────────────────────────────────
+  // NOTE: wrapper divs for platforms use opacity-only (no transform), so
+  // offsetParent resolution is unaffected in Chrome and btn.offsetTop is
+  // correctly relative to the connector div (position:relative).
   useEffect(() => {
     const idx = PLATFORMS.findIndex((p) => p.id === selectedId);
     const btn = platformRefs.current[idx];
@@ -110,7 +127,7 @@ export function IntelligenceVault({ isOpen, onClose, triggerRef }: Props) {
     setIndicatorHeight(btn.offsetHeight);
   }, [selectedId, isOpen]);
 
-  // Focus trap
+  // ── focus trap ────────────────────────────────────────────────────────────
   const trapFocus = useCallback((e: React.KeyboardEvent) => {
     if (e.key !== "Tab") return;
     const els = Array.from(
@@ -133,6 +150,50 @@ export function IntelligenceVault({ isOpen, onClose, triggerRef }: Props) {
   const activeItem = PLATFORMS.find((p) => p.id === selectedId) ?? null;
   const dur = (ms: number) => (reducedMotion ? "0ms" : `${ms}ms`);
 
+  // ── stagger helpers ───────────────────────────────────────────────────────
+
+  // For non-platform items: full opacity + translateY on the wrapper div.
+  const staggerWrap = (idx: number): React.CSSProperties => {
+    if (reducedMotion) return {};
+    const d = `${idx * 40 + 80}ms`;
+    return {
+      opacity: isOpen ? 1 : 0,
+      transform: isOpen ? "translateY(0)" : "translateY(6px)",
+      transition: isOpen
+        ? `opacity 120ms ${EASE} ${d}, transform 120ms ${EASE} ${d}`
+        : `opacity 60ms ${EASE}, transform 60ms ${EASE}`,
+    };
+  };
+
+  // For platform items: ONLY opacity on the wrapper div.
+  // Applying transform here would make Chrome treat the div as an offsetParent,
+  // breaking btn.offsetTop measurement. The translateY goes on an inner span instead.
+  const platformWrap = (idx: number): React.CSSProperties => {
+    if (reducedMotion) return {};
+    const d = `${idx * 40 + 80}ms`;
+    return {
+      opacity: isOpen ? 1 : 0,
+      transition: isOpen
+        ? `opacity 120ms ${EASE} ${d}`
+        : `opacity 60ms ${EASE}`,
+    };
+  };
+
+  // translateY for the inner span inside each platform button.
+  const platformInner = (idx: number): React.CSSProperties => {
+    if (reducedMotion) return { display: "flex", alignItems: "baseline", gap: "10px" };
+    const d = `${idx * 40 + 80}ms`;
+    return {
+      display: "flex",
+      alignItems: "baseline",
+      gap: "10px",
+      transform: isOpen ? "translateY(0)" : "translateY(6px)",
+      transition: isOpen
+        ? `transform 120ms ${EASE} ${d}`
+        : `transform 60ms ${EASE}`,
+    };
+  };
+
   return (
     <div
       role="dialog"
@@ -150,7 +211,7 @@ export function IntelligenceVault({ isOpen, onClose, triggerRef }: Props) {
         transition: `opacity ${dur(150)} ${EASE}`,
       }}
     >
-      {/* Left half — dimmed + blurred, click closes */}
+      {/* Left half — click closes */}
       <div
         aria-hidden="true"
         onClick={onClose}
@@ -178,7 +239,7 @@ export function IntelligenceVault({ isOpen, onClose, triggerRef }: Props) {
           overflow: "hidden",
         }}
       >
-        {/* Close button — aligned with DEPENDENCIES label (top: 64px) */}
+        {/* Close button */}
         <button
           type="button"
           onClick={onClose}
@@ -186,7 +247,7 @@ export function IntelligenceVault({ isOpen, onClose, triggerRef }: Props) {
           className="opacity-60 hover:opacity-100"
           style={{
             position: "absolute",
-            top: 64,
+            top: 40,
             right: 20,
             zIndex: 10,
             background: "none",
@@ -197,49 +258,46 @@ export function IntelligenceVault({ isOpen, onClose, triggerRef }: Props) {
             transition: `opacity 100ms ${EASE}`,
           }}
         >
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 20 20"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1"
-          >
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1">
             <line x1="4" y1="4" x2="16" y2="16" />
             <line x1="16" y1="4" x2="4" y2="16" />
           </svg>
         </button>
 
-        {/* List zone */}
+        {/* ── List zone ──────────────────────────────────────────────────── */}
         <div
           style={{
             flex: "0 0 55%",
             display: "flex",
             flexDirection: "column",
             justifyContent: "flex-start",
-            padding: "64px 40px",
+            padding: "40px 32px",
+            overflowY: "auto",
           }}
         >
           {/* Group 1 — DEPENDENCIES + platforms */}
           <div>
-            <div
-              style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: "10px",
-                letterSpacing: "0.12em",
-                textTransform: "uppercase",
-                color: "rgba(255,255,255,0.35)",
-              }}
-            >
-              DEPENDENCIES
+            {/* stagger 0: DEPENDENCIES label */}
+            <div style={staggerWrap(0)}>
+              <div
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  fontSize: "10px",
+                  letterSpacing: "0.12em",
+                  textTransform: "uppercase",
+                  color: "rgba(255,255,255,0.35)",
+                }}
+              >
+                DEPENDENCIES
+              </div>
             </div>
 
-            {/* Connector with sliding indicator */}
+            {/* Connector with vertical sliding indicator */}
             <div
               style={{
                 position: "relative",
                 paddingLeft: "18px",
-                marginTop: "10px",
+                marginTop: "6px",
               }}
             >
               {/* Base line */}
@@ -254,8 +312,7 @@ export function IntelligenceVault({ isOpen, onClose, triggerRef }: Props) {
                   backgroundColor: "rgba(255,255,255,0.12)",
                 }}
               />
-
-              {/* Sliding indicator */}
+              {/* Sliding indicator — moves to the active platform */}
               <div
                 aria-hidden="true"
                 style={{
@@ -271,65 +328,153 @@ export function IntelligenceVault({ isOpen, onClose, triggerRef }: Props) {
                 }}
               />
 
+              {/* stagger 1–4: platform buttons
+                  Wrapper has opacity-ONLY (no transform) so Chrome doesn't
+                  treat it as offsetParent — btn.offsetTop stays correct.
+                  The translateY lives on an inner span inside the button. */}
               {PLATFORMS.map((item, idx) => (
-                <button
-                  key={item.id}
-                  ref={(el) => { platformRefs.current[idx] = el; }}
-                  type="button"
-                  onMouseEnter={() => setSelectedId(item.id)}
-                  onFocus={() => setSelectedId(item.id)}
-                  aria-label={item.name}
-                  style={{
-                    display: "flex",
-                    alignItems: "baseline",
-                    gap: "10px",
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    padding: "10px 0",
-                    width: "100%",
-                    textAlign: "left",
-                    opacity: selectedId === item.id ? 1 : 0.22,
-                    transition: `opacity ${dur(80)} ${EASE}`,
-                  }}
-                >
-                  <span
+                <div key={item.id} style={platformWrap(idx + 1)}>
+                  <button
+                    ref={(el) => { platformRefs.current[idx] = el; }}
+                    type="button"
+                    onMouseEnter={() => setSelectedId(item.id)}
+                    onFocus={() => setSelectedId(item.id)}
+                    aria-label={item.name}
                     style={{
-                      fontFamily: "var(--font-mono)",
-                      fontSize: "10px",
-                      color: "rgba(255,255,255,0.35)",
-                      letterSpacing: "0.06em",
-                      userSelect: "none",
-                      flexShrink: 0,
-                      paddingBottom: "2px",
+                      display: "block",
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      padding: "8px 0",
+                      width: "100%",
+                      textAlign: "left",
+                      opacity: selectedId === item.id ? 1 : 0.22,
+                      transition: `opacity ${dur(80)} ${EASE}`,
                     }}
                   >
-                    {item.num}
-                  </span>
-                  <span style={PLATFORM_TEXT}>{item.name}</span>
-                </button>
+                    {/* inner span carries the translateY — doesn't affect offsetParent */}
+                    <span style={platformInner(idx + 1)}>
+                      <span
+                        style={{
+                          fontFamily: "var(--font-mono)",
+                          fontSize: "10px",
+                          color: "rgba(255,255,255,0.35)",
+                          letterSpacing: "0.06em",
+                          userSelect: "none",
+                          flexShrink: 0,
+                          paddingBottom: "2px",
+                        }}
+                      >
+                        {item.num}
+                      </span>
+                      <span style={PLATFORM_TEXT}>{item.name}</span>
+                    </span>
+                  </button>
+                </div>
               ))}
             </div>
           </div>
 
-          {/* Group 2 — page links */}
-          <div>
+          {/* stagger 5: separator */}
+          <div style={staggerWrap(5)}>
+            <div style={{ height: "1px", backgroundColor: "rgba(255,255,255,0.1)", margin: "14px 0 0" }} />
+          </div>
+
+          {/* stagger 6: EXPLORE label — same style as DEPENDENCIES */}
+          <div style={staggerWrap(6)}>
             <div
               style={{
-                height: "1px",
-                backgroundColor: "rgba(255,255,255,0.1)",
-                marginBottom: "16px",
+                fontFamily: "var(--font-mono)",
+                fontSize: "10px",
+                letterSpacing: "0.12em",
+                textTransform: "uppercase",
+                color: "rgba(255,255,255,0.35)",
+                marginTop: "8px",
               }}
-            />
+            >
+              EXPLORE
+            </div>
+          </div>
 
-            {PAGE_LINKS.map((item) => (
+          {/* Group 2 — page links, stagger 7–10, indented to match platforms */}
+          <div style={{ paddingLeft: "18px" }}>
+            {PAGE_LINKS.map((item, idx) => (
+              <div key={item.id} style={staggerWrap(idx + 7)}>
+                <button
+                  type="button"
+                  aria-label={item.name}
+                  onMouseEnter={() => setHoveredLinkId(item.id)}
+                  onMouseLeave={() => setHoveredLinkId(null)}
+                  onFocus={() => setHoveredLinkId(item.id)}
+                  onBlur={() => setHoveredLinkId(null)}
+                  className="opacity-60 hover:opacity-100 focus-visible:opacity-100"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: "6px 0",
+                    width: "100%",
+                    textAlign: "left",
+                    transition: `opacity ${dur(80)} ${EASE}`,
+                  }}
+                >
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      flexShrink: 0,
+                      width: 2,
+                      height: 12,
+                      backgroundColor: "rgba(255,255,255,0.75)",
+                      opacity: hoveredLinkId === item.id ? 1 : 0,
+                      transition: `opacity ${dur(80)} ${EASE}`,
+                    }}
+                  />
+                  <span style={LINK_TEXT}>{item.name}</span>
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {/* stagger 11: separator */}
+          <div style={staggerWrap(11)}>
+            <div style={{ height: "1px", backgroundColor: "rgba(255,255,255,0.1)", margin: "14px 0 0" }} />
+          </div>
+
+          {/* stagger 12: RESOURCES label */}
+          <div style={staggerWrap(12)}>
+            <div
+              style={{
+                fontFamily: "var(--font-mono)",
+                fontSize: "10px",
+                letterSpacing: "0.12em",
+                textTransform: "uppercase",
+                color: "rgba(255,255,255,0.35)",
+                marginTop: "8px",
+              }}
+            >
+              RESOURCES
+            </div>
+          </div>
+
+          {/* Group 3 — utility links, stagger 13–16, indented to match platforms */}
+          <div style={{ paddingLeft: "18px" }}>
+            {UTILITY_LINKS.map((item, idx) => (
+            <div key={item.id} style={staggerWrap(idx + 13)}>
               <button
-                key={item.id}
                 type="button"
                 aria-label={item.name}
+                onMouseEnter={() => setHoveredLinkId(item.id)}
+                onMouseLeave={() => setHoveredLinkId(null)}
+                onFocus={() => setHoveredLinkId(item.id)}
+                onBlur={() => setHoveredLinkId(null)}
                 className="opacity-60 hover:opacity-100 focus-visible:opacity-100"
                 style={{
-                  display: "block",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
                   background: "none",
                   border: "none",
                   cursor: "pointer",
@@ -339,13 +484,25 @@ export function IntelligenceVault({ isOpen, onClose, triggerRef }: Props) {
                   transition: `opacity ${dur(80)} ${EASE}`,
                 }}
               >
-                <span style={PAGE_LINK_TEXT}>{item.name}</span>
+                <span
+                  aria-hidden="true"
+                  style={{
+                    flexShrink: 0,
+                    width: 2,
+                    height: 12,
+                    backgroundColor: "rgba(255,255,255,0.75)",
+                    opacity: hoveredLinkId === item.id ? 1 : 0,
+                    transition: `opacity ${dur(80)} ${EASE}`,
+                  }}
+                />
+                <span style={LINK_TEXT}>{item.name}</span>
               </button>
-            ))}
+            </div>
+          ))}
           </div>
         </div>
 
-        {/* Reveal zone */}
+        {/* ── Reveal zone ────────────────────────────────────────────────── */}
         <div
           style={{
             flex: 1,
@@ -364,10 +521,9 @@ export function IntelligenceVault({ isOpen, onClose, triggerRef }: Props) {
           >
             {activeItem && (
               <>
-                {/* Isometric placeholder — reserved space for future illustration */}
+                {/* Isometric placeholder */}
                 <div style={{ height: "120px", marginBottom: "24px" }} aria-hidden="true" />
 
-                {/* Platform label */}
                 <div
                   style={{
                     fontFamily: "var(--font-mono)",
@@ -381,7 +537,6 @@ export function IntelligenceVault({ isOpen, onClose, triggerRef }: Props) {
                   PLATFORM {activeItem.num}
                 </div>
 
-                {/* Description */}
                 <p
                   style={{
                     fontFamily: "var(--font-display)",
@@ -396,7 +551,6 @@ export function IntelligenceVault({ isOpen, onClose, triggerRef }: Props) {
                   {activeItem.desc}
                 </p>
 
-                {/* HUD metadata */}
                 <dl
                   style={{
                     margin: 0,
