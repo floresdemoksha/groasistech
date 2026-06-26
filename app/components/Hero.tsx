@@ -19,11 +19,11 @@ export function Hero({ videoSrc, posterSrc }: HeroProps) {
       {/* Contenido central */}
       <div className="relative z-10 flex h-dvh flex-col items-center justify-center px-[var(--space-4)]">
         <h1
-          className="max-w-4xl text-center text-4xl font-semibold leading-tight tracking-tight text-[var(--color-text)] md:text-5xl lg:text-6xl"
-          style={{ fontFamily: "var(--font-display)" }}
+          className="max-w-4xl text-center text-4xl leading-tight tracking-tight text-[var(--color-text)] md:text-5xl lg:text-6xl"
+          style={{ fontFamily: "var(--font-display)", fontWeight: 450 }}
         >
           Frontier technology. Sovereign by design.
-    
+
           <br />
         </h1>
       </div>
