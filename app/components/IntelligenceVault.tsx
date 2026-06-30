@@ -33,6 +33,36 @@ const UTILITY_LINKS = [
 
 const EASE = "cubic-bezier(0, 0, 0.2, 1)";
 
+// Stagger timing constants — single source of truth.
+// If you change these, PLATFORM_STAGGER_DONE_MS updates automatically.
+const STAGGER_STEP_MS = 40;  // delay increment per item
+const STAGGER_BASE_MS = 80;  // delay before the first item
+const STAGGER_DUR_MS  = 120; // each item's animation duration
+
+// Time (ms) after isOpen=true at which ALL platform wrappers have finished
+// their stagger: last platform delay + duration + 30ms compositing buffer.
+// Recalculates automatically if STAGGER_* constants or PLATFORMS.length change.
+const PLATFORM_STAGGER_DONE_MS =
+  STAGGER_BASE_MS + PLATFORMS.length * STAGGER_STEP_MS + STAGGER_DUR_MS + 30;
+
+// Close-stagger constants — reverse of the open stagger.
+// Items stagger OUT bottom-to-top; panel slides away only after all items are gone.
+const STAGGER_CLOSE_DUR_MS = 60; // each item's fade-out duration (faster than open)
+// Total stagger slots: DEPENDENCIES label + platforms + sep+label+links (EXPLORE) + sep+label+links (RESOURCES)
+const STAGGER_ITEM_COUNT =
+  1 + PLATFORMS.length + 1 + 1 + PAGE_LINKS.length + 1 + 1 + UTILITY_LINKS.length;
+// Panel slide delay = time until the last item (idx 0) finishes closing
+const STAGGER_CLOSE_DONE_MS =
+  (STAGGER_ITEM_COUNT - 1) * STAGGER_STEP_MS + STAGGER_CLOSE_DUR_MS;
+
+const CATEGORY_LABEL: React.CSSProperties = {
+  fontFamily: "var(--font-mono)",
+  fontSize: "10px",
+  letterSpacing: "0.12em",
+  textTransform: "uppercase",
+  color: "rgba(255,255,255,0.35)",
+};
+
 const PLATFORM_TEXT: React.CSSProperties = {
   fontFamily: "var(--font-display)",
   fontSize: "36px",
@@ -65,6 +95,7 @@ export function IntelligenceVault({ isOpen, onClose, triggerRef }: Props) {
   const [indicatorHeight, setIndicatorHeight] = useState(0);
   const [hoveredLinkId, setHoveredLinkId]     = useState<string | null>(null);
   const [reducedMotion, setReducedMotion]     = useState(false);
+  const [hasStaggered, setHasStaggered]       = useState(false);
 
   const panelRef     = useRef<HTMLDivElement>(null);
   const platformRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -115,6 +146,20 @@ export function IntelligenceVault({ isOpen, onClose, triggerRef }: Props) {
     }
   }, [isOpen, reducedMotion, triggerRef]);
 
+  // ── clear platform stagger after animation completes ─────────────────────
+  // Once hasStaggered=true, platformWrap/platformInner return {} so the
+  // delayed transition property is removed from the DOM. Without this, the
+  // 120ms delay persists and interferes with the button's 80ms selection
+  // opacity (the GT-AERO "half-de-emphasis" bug on mouse-out).
+  useEffect(() => {
+    if (!isOpen) {
+      setHasStaggered(false);
+      return;
+    }
+    const t = setTimeout(() => setHasStaggered(true), PLATFORM_STAGGER_DONE_MS);
+    return () => clearTimeout(t);
+  }, [isOpen]);
+
   // ── platform indicator measurement ───────────────────────────────────────
   // NOTE: wrapper divs for platforms use opacity-only (no transform), so
   // offsetParent resolution is unaffected in Chrome and btn.offsetTop is
@@ -152,45 +197,67 @@ export function IntelligenceVault({ isOpen, onClose, triggerRef }: Props) {
 
   // ── stagger helpers ───────────────────────────────────────────────────────
 
+  // Reverse delay for the close stagger: last item (highest idx) closes first.
+  const closeDelay = (idx: number) =>
+    `${(STAGGER_ITEM_COUNT - 1 - idx) * STAGGER_STEP_MS}ms`;
+
   // For non-platform items: full opacity + translateY on the wrapper div.
   const staggerWrap = (idx: number): React.CSSProperties => {
     if (reducedMotion) return {};
-    const d = `${idx * 40 + 80}ms`;
+    if (isOpen) {
+      const d = `${idx * STAGGER_STEP_MS + STAGGER_BASE_MS}ms`;
+      return {
+        opacity: 1,
+        transform: "translateY(0)",
+        transition: `opacity ${STAGGER_DUR_MS}ms ${EASE} ${d}, transform ${STAGGER_DUR_MS}ms ${EASE} ${d}`,
+      };
+    }
+    const d = closeDelay(idx);
     return {
-      opacity: isOpen ? 1 : 0,
-      transform: isOpen ? "translateY(0)" : "translateY(6px)",
-      transition: isOpen
-        ? `opacity 120ms ${EASE} ${d}, transform 120ms ${EASE} ${d}`
-        : `opacity 60ms ${EASE}, transform 60ms ${EASE}`,
+      opacity: 0,
+      transform: "translateY(6px)",
+      transition: `opacity ${STAGGER_CLOSE_DUR_MS}ms ${EASE} ${d}, transform ${STAGGER_CLOSE_DUR_MS}ms ${EASE} ${d}`,
     };
   };
 
   // For platform items: ONLY opacity on the wrapper div.
   // Applying transform here would make Chrome treat the div as an offsetParent,
   // breaking btn.offsetTop measurement. The translateY goes on an inner span instead.
+  // After hasStaggered=true the wrapper returns {} — no inline opacity or transition —
+  // so the button's own 80ms opacity transition is the sole controller (no delay conflict).
   const platformWrap = (idx: number): React.CSSProperties => {
-    if (reducedMotion) return {};
-    const d = `${idx * 40 + 80}ms`;
+    if (reducedMotion || hasStaggered) return {};
+    if (isOpen) {
+      const d = `${idx * STAGGER_STEP_MS + STAGGER_BASE_MS}ms`;
+      return {
+        opacity: 1,
+        transition: `opacity ${STAGGER_DUR_MS}ms ${EASE} ${d}`,
+      };
+    }
+    const d = closeDelay(idx);
     return {
-      opacity: isOpen ? 1 : 0,
-      transition: isOpen
-        ? `opacity 120ms ${EASE} ${d}`
-        : `opacity 60ms ${EASE}`,
+      opacity: 0,
+      transition: `opacity ${STAGGER_CLOSE_DUR_MS}ms ${EASE} ${d}`,
     };
   };
 
   // translateY for the inner span inside each platform button.
   const platformInner = (idx: number): React.CSSProperties => {
-    if (reducedMotion) return { display: "flex", alignItems: "baseline", gap: "10px" };
-    const d = `${idx * 40 + 80}ms`;
+    const base = { display: "flex", alignItems: "baseline", gap: "10px" } as const;
+    if (reducedMotion || hasStaggered) return base;
+    if (isOpen) {
+      const d = `${idx * STAGGER_STEP_MS + STAGGER_BASE_MS}ms`;
+      return {
+        ...base,
+        transform: "translateY(0)",
+        transition: `transform ${STAGGER_DUR_MS}ms ${EASE} ${d}`,
+      };
+    }
+    const d = closeDelay(idx);
     return {
-      display: "flex",
-      alignItems: "baseline",
-      gap: "10px",
-      transform: isOpen ? "translateY(0)" : "translateY(6px)",
-      transition: isOpen
-        ? `transform 120ms ${EASE} ${d}`
-        : `transform 60ms ${EASE}`,
+      ...base,
+      transform: "translateY(6px)",
+      transition: `transform ${STAGGER_CLOSE_DUR_MS}ms ${EASE} ${d}`,
     };
   };
 
@@ -207,11 +274,9 @@ export function IntelligenceVault({ isOpen, onClose, triggerRef }: Props) {
         zIndex: 60,
         display: "flex",
         pointerEvents: isOpen ? "auto" : "none",
-        opacity: isOpen ? 1 : 0,
-        transition: `opacity ${dur(150)} ${EASE}`,
       }}
     >
-      {/* Left half — click closes */}
+      {/* Left half — click closes. Fades in/out independently so it stays in sync with the panel slide. */}
       <div
         aria-hidden="true"
         onClick={onClose}
@@ -220,6 +285,10 @@ export function IntelligenceVault({ isOpen, onClose, triggerRef }: Props) {
           backdropFilter: "blur(8px)",
           backgroundColor: "rgba(0, 0, 0, 0.45)",
           cursor: "default",
+          opacity: isOpen ? 1 : 0,
+          transition: isOpen
+            ? `opacity ${dur(150)} ${EASE}`
+            : `opacity ${dur(150)} ${EASE} ${reducedMotion ? "0ms" : `${STAGGER_CLOSE_DONE_MS}ms`}`,
         }}
       />
 
@@ -235,7 +304,10 @@ export function IntelligenceVault({ isOpen, onClose, triggerRef }: Props) {
           backdropFilter: "blur(12px)",
           borderLeft: "1px solid rgba(255, 255, 255, 0.12)",
           transform: isOpen ? "translateX(0)" : "translateX(100%)",
-          transition: `transform ${dur(150)} ${EASE}`,
+          // On close: panel slides out only after the reverse stagger completes.
+          transition: isOpen
+            ? `transform ${dur(150)} ${EASE}`
+            : `transform ${dur(150)} ${EASE} ${reducedMotion ? "0ms" : `${STAGGER_CLOSE_DONE_MS}ms`}`,
           overflow: "hidden",
         }}
       >
@@ -265,54 +337,42 @@ export function IntelligenceVault({ isOpen, onClose, triggerRef }: Props) {
         </button>
 
         {/* ── List zone ──────────────────────────────────────────────────── */}
+        {/* height: 100% is required: the parent panel is display:flex (row),
+            and Chrome collapses overflow:auto children to content height instead
+            of stretching them — breaking justify-content:space-between.
+            Cascade: outer dialog (inset:0) → panel (height:100%) → list zone (height:100%). */}
         <div
           style={{
             flex: "0 0 55%",
+            height: "100%",
             display: "flex",
             flexDirection: "column",
-            justifyContent: "flex-start",
-            padding: "40px 32px",
+            padding: "4dvh 32px",
             overflowY: "auto",
+            boxSizing: "border-box",
           }}
         >
-          {/* Group 1 — DEPENDENCIES + platforms */}
-          <div>
-            {/* stagger 0: DEPENDENCIES label */}
+
+          {/* ── Group: DEPENDENCIES — flex:1 section, content centered vertically */}
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+            {/* stagger 0: label */}
             <div style={staggerWrap(0)}>
-              <div
-                style={{
-                  fontFamily: "var(--font-mono)",
-                  fontSize: "10px",
-                  letterSpacing: "0.12em",
-                  textTransform: "uppercase",
-                  color: "rgba(255,255,255,0.35)",
-                }}
-              >
-                DEPENDENCIES
-              </div>
+              <div style={CATEGORY_LABEL}>DEPENDENCIES</div>
             </div>
 
-            {/* Connector with vertical sliding indicator */}
-            <div
-              style={{
-                position: "relative",
-                paddingLeft: "18px",
-                marginTop: "6px",
-              }}
-            >
+            {/* Connector — marginTop +4px extra gap under label */}
+            <div style={{ position: "relative", paddingLeft: "18px", marginTop: "10px" }}>
               {/* Base line */}
               <div
                 aria-hidden="true"
                 style={{
                   position: "absolute",
-                  left: 0,
-                  top: 0,
-                  bottom: 0,
+                  left: 0, top: 0, bottom: 0,
                   width: "2px",
                   backgroundColor: "rgba(255,255,255,0.12)",
                 }}
               />
-              {/* Sliding indicator — moves to the active platform */}
+              {/* Sliding indicator */}
               <div
                 aria-hidden="true"
                 style={{
@@ -329,9 +389,9 @@ export function IntelligenceVault({ isOpen, onClose, triggerRef }: Props) {
               />
 
               {/* stagger 1–4: platform buttons
-                  Wrapper has opacity-ONLY (no transform) so Chrome doesn't
-                  treat it as offsetParent — btn.offsetTop stays correct.
-                  The translateY lives on an inner span inside the button. */}
+                  Wrapper uses opacity-ONLY so Chrome doesn't treat it as
+                  offsetParent — btn.offsetTop stays correct against connector.
+                  translateY lives on an inner span. */}
               {PLATFORMS.map((item, idx) => (
                 <div key={item.id} style={platformWrap(idx + 1)}>
                   <button
@@ -348,11 +408,22 @@ export function IntelligenceVault({ isOpen, onClose, triggerRef }: Props) {
                       padding: "8px 0",
                       width: "100%",
                       textAlign: "left",
-                      opacity: selectedId === item.id ? 1 : 0.22,
+                      // Selection opacity logic:
+                      // • isOpen=false (closing): keep selection opacity so the platform
+                      //   fades out at full/dim rather than snapping before the wrapper
+                      //   stagger closes it. (!isOpen short-circuits to selection.)
+                      // • isOpen=true, hasStaggered=false (open stagger in progress):
+                      //   all buttons neutral at 0.22 — prevents GT-AERO from starting
+                      //   at opacity:1 before a transition has run (GT-AERO bug fix).
+                      // • isOpen=true, hasStaggered=true (steady state): selection opacity.
+                      //   GT-AERO animates 0.22→1 cleanly, matching any other platform.
+                      // • reducedMotion: always apply selection immediately.
+                      opacity: (!isOpen || hasStaggered || reducedMotion)
+                        ? (selectedId === item.id ? 1 : 0.22)
+                        : 0.22,
                       transition: `opacity ${dur(80)} ${EASE}`,
                     }}
                   >
-                    {/* inner span carries the translateY — doesn't affect offsetParent */}
                     <span style={platformInner(idx + 1)}>
                       <span
                         style={{
@@ -375,131 +446,118 @@ export function IntelligenceVault({ isOpen, onClose, triggerRef }: Props) {
             </div>
           </div>
 
-          {/* stagger 5: separator */}
-          <div style={staggerWrap(5)}>
-            <div style={{ height: "1px", backgroundColor: "rgba(255,255,255,0.1)", margin: "14px 0 0" }} />
-          </div>
-
-          {/* stagger 6: EXPLORE label — same style as DEPENDENCIES */}
-          <div style={staggerWrap(6)}>
-            <div
-              style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: "10px",
-                letterSpacing: "0.12em",
-                textTransform: "uppercase",
-                color: "rgba(255,255,255,0.35)",
-                marginTop: "8px",
-              }}
-            >
-              EXPLORE
+          {/* ── Group: EXPLORE — flex:1 section, separator at boundary, content centered */}
+          <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+            {/* stagger 5: separator marks the top boundary of this section */}
+            <div style={staggerWrap(5)}>
+              <div style={{ height: "1px", backgroundColor: "rgba(255,255,255,0.1)" }} />
             </div>
-          </div>
-
-          {/* Group 2 — page links, stagger 7–10, indented to match platforms */}
-          <div style={{ paddingLeft: "18px" }}>
-            {PAGE_LINKS.map((item, idx) => (
-              <div key={item.id} style={staggerWrap(idx + 7)}>
-                <button
-                  type="button"
-                  aria-label={item.name}
-                  onMouseEnter={() => setHoveredLinkId(item.id)}
-                  onMouseLeave={() => setHoveredLinkId(null)}
-                  onFocus={() => setHoveredLinkId(item.id)}
-                  onBlur={() => setHoveredLinkId(null)}
-                  className="opacity-60 hover:opacity-100 focus-visible:opacity-100"
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "10px",
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    padding: "6px 0",
-                    width: "100%",
-                    textAlign: "left",
-                    transition: `opacity ${dur(80)} ${EASE}`,
-                  }}
-                >
-                  <span
-                    aria-hidden="true"
+            {/* centered content within the remaining section height */}
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+            {/* stagger 6: label */}
+            <div style={staggerWrap(6)}>
+              <div style={{ ...CATEGORY_LABEL, marginBottom: "8px" }}>EXPLORE</div>
+            </div>
+            {/* stagger 7–10: page links */}
+            <div style={{ paddingLeft: "18px" }}>
+              {PAGE_LINKS.map((item, idx) => (
+                <div key={item.id} style={staggerWrap(idx + 7)}>
+                  <button
+                    type="button"
+                    aria-label={item.name}
+                    onMouseEnter={() => setHoveredLinkId(item.id)}
+                    onMouseLeave={() => setHoveredLinkId(null)}
+                    onFocus={() => setHoveredLinkId(item.id)}
+                    onBlur={() => setHoveredLinkId(null)}
+                    className="opacity-60 hover:opacity-100 focus-visible:opacity-100"
                     style={{
-                      flexShrink: 0,
-                      width: 2,
-                      height: 12,
-                      backgroundColor: "rgba(255,255,255,0.75)",
-                      opacity: hoveredLinkId === item.id ? 1 : 0,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      padding: "6px 0",
+                      width: "100%",
+                      textAlign: "left",
                       transition: `opacity ${dur(80)} ${EASE}`,
                     }}
-                  />
-                  <span style={LINK_TEXT}>{item.name}</span>
-                </button>
-              </div>
-            ))}
-          </div>
-
-          {/* stagger 11: separator */}
-          <div style={staggerWrap(11)}>
-            <div style={{ height: "1px", backgroundColor: "rgba(255,255,255,0.1)", margin: "14px 0 0" }} />
-          </div>
-
-          {/* stagger 12: RESOURCES label */}
-          <div style={staggerWrap(12)}>
-            <div
-              style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: "10px",
-                letterSpacing: "0.12em",
-                textTransform: "uppercase",
-                color: "rgba(255,255,255,0.35)",
-                marginTop: "8px",
-              }}
-            >
-              RESOURCES
+                  >
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        flexShrink: 0,
+                        width: 2,
+                        height: 12,
+                        backgroundColor: "rgba(255,255,255,0.75)",
+                        opacity: hoveredLinkId === item.id ? 1 : 0,
+                        transition: `opacity ${dur(80)} ${EASE}`,
+                      }}
+                    />
+                    <span style={LINK_TEXT}>{item.name}</span>
+                  </button>
+                </div>
+              ))}
             </div>
-          </div>
+            </div>{/* end centering inner div */}
+          </div>{/* end EXPLORE section */}
 
-          {/* Group 3 — utility links, stagger 13–16, indented to match platforms */}
-          <div style={{ paddingLeft: "18px" }}>
-            {UTILITY_LINKS.map((item, idx) => (
-            <div key={item.id} style={staggerWrap(idx + 13)}>
-              <button
-                type="button"
-                aria-label={item.name}
-                onMouseEnter={() => setHoveredLinkId(item.id)}
-                onMouseLeave={() => setHoveredLinkId(null)}
-                onFocus={() => setHoveredLinkId(item.id)}
-                onBlur={() => setHoveredLinkId(null)}
-                className="opacity-60 hover:opacity-100 focus-visible:opacity-100"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "10px",
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  padding: "7px 0",
-                  width: "100%",
-                  textAlign: "left",
-                  transition: `opacity ${dur(80)} ${EASE}`,
-                }}
-              >
-                <span
-                  aria-hidden="true"
-                  style={{
-                    flexShrink: 0,
-                    width: 2,
-                    height: 12,
-                    backgroundColor: "rgba(255,255,255,0.75)",
-                    opacity: hoveredLinkId === item.id ? 1 : 0,
-                    transition: `opacity ${dur(80)} ${EASE}`,
-                  }}
-                />
-                <span style={LINK_TEXT}>{item.name}</span>
-              </button>
+          {/* ── Group: RESOURCES — flex:1 section, separator at boundary, content centered */}
+          <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+            {/* stagger 11: separator marks the top boundary of this section */}
+            <div style={staggerWrap(11)}>
+              <div style={{ height: "1px", backgroundColor: "rgba(255,255,255,0.1)" }} />
             </div>
-          ))}
-          </div>
+            {/* centered content within the remaining section height */}
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+            {/* stagger 12: label */}
+            <div style={staggerWrap(12)}>
+              <div style={{ ...CATEGORY_LABEL, marginBottom: "8px" }}>RESOURCES</div>
+            </div>
+            {/* stagger 13–16: utility links */}
+            <div style={{ paddingLeft: "18px" }}>
+              {UTILITY_LINKS.map((item, idx) => (
+                <div key={item.id} style={staggerWrap(idx + 13)}>
+                  <button
+                    type="button"
+                    aria-label={item.name}
+                    onMouseEnter={() => setHoveredLinkId(item.id)}
+                    onMouseLeave={() => setHoveredLinkId(null)}
+                    onFocus={() => setHoveredLinkId(item.id)}
+                    onBlur={() => setHoveredLinkId(null)}
+                    className="opacity-60 hover:opacity-100 focus-visible:opacity-100"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      padding: "6px 0",
+                      width: "100%",
+                      textAlign: "left",
+                      transition: `opacity ${dur(80)} ${EASE}`,
+                    }}
+                  >
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        flexShrink: 0,
+                        width: 2,
+                        height: 12,
+                        backgroundColor: "rgba(255,255,255,0.75)",
+                        opacity: hoveredLinkId === item.id ? 1 : 0,
+                        transition: `opacity ${dur(80)} ${EASE}`,
+                      }}
+                    />
+                    <span style={LINK_TEXT}>{item.name}</span>
+                  </button>
+                </div>
+              ))}
+            </div>
+            </div>{/* end centering inner div */}
+          </div>{/* end RESOURCES section */}
+
         </div>
 
         {/* ── Reveal zone ────────────────────────────────────────────────── */}
