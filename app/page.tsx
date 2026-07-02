@@ -1,4 +1,6 @@
 import { Hero } from "./components/Hero";
+import { StatementSection } from "./components/StatementSection";
+import { DependenciesSection } from "./components/DependenciesSection";
 
 export default function Home() {
   return (
@@ -7,13 +9,8 @@ export default function Home() {
         videoSrc="/hero-bg.mp4"
         posterSrc="/hero-bg-poster.jpg"
       />
-
-      {/* Placeholder para verificar scroll */}
-      <section className="h-screen bg-[var(--color-vault)] flex items-center justify-center">
-        <p className="text-[var(--color-text-muted)] font-mono text-sm">
-          // Contenido adicional
-        </p>
-      </section>
+      <StatementSection />
+      <DependenciesSection />
     </main>
   );
 }

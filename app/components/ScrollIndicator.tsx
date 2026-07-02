@@ -57,19 +57,12 @@ export function ScrollIndicator() {
 
       <style jsx>{`
         @keyframes scroll-hint {
-          0%,
-          100% {
-            transform: translateY(0);
-            opacity: 0.6;
-          }
-          50% {
-            transform: translateY(4px);
-            opacity: 1;
-          }
+          0%, 100% { opacity: 0.25; }
+          50% { opacity: 0.9; }
         }
 
         .animate-scroll-hint {
-          animation: scroll-hint 2s var(--easing-out) infinite;
+          animation: scroll-hint 1.2s linear infinite;
         }
 
         @media (prefers-reduced-motion: reduce) {
