@@ -94,6 +94,12 @@ body {
   border-radius: var(--radius-none);
 }
 
+/* Designed focus ring — replaces browser blue default across all interactive elements */
+:focus-visible {
+  outline: 1px solid rgba(255, 255, 255, 0.55);
+  outline-offset: 3px;
+}
+
 /* Respect reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *,

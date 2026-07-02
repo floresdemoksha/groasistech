@@ -1,5 +1,6 @@
 import { Hero } from "./components/Hero";
 import { StatementSection } from "./components/StatementSection";
+import { DependenciesSection } from "./components/DependenciesSection";
 
 export default function Home() {
   return (
@@ -9,6 +10,7 @@ export default function Home() {
         posterSrc="/hero-bg-poster.jpg"
       />
       <StatementSection />
+      <DependenciesSection />
     </main>
   );
 }

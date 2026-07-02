@@ -16,7 +16,7 @@ export function Header() {
         className="fixed top-3 left-4 right-4 z-50 border border-[var(--color-border)] backdrop-blur-[10px] overflow-hidden"
         style={{
           backgroundColor: "rgba(38, 40, 45, 0.3)",
-          borderRadius: "10px",
+          borderRadius: "0px",
         }}
       >
         <div className="flex items-center justify-between px-[var(--space-4)] py-[var(--space-2)]">

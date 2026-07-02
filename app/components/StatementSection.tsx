@@ -65,7 +65,7 @@ export function StatementSection() {
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          padding: "0 clamp(24px, 8vw, 120px)",
+          padding: "0 clamp(24px, 6vw, 80px)",
         }}
       >
         <span
@@ -88,7 +88,7 @@ export function StatementSection() {
             maxWidth: "820px",
             fontFamily: "var(--font-display)",
             fontSize: "clamp(28px, 3.5vw, 52px)",
-            fontWeight: 500,
+            fontWeight: 600,
             letterSpacing: "-0.02em",
             lineHeight: 1.35,
             color: "var(--color-text)",

@@ -41,17 +41,13 @@ const STAGGER_DUR_MS  = 120; // each item's animation duration
 
 // Time (ms) after isOpen=true at which ALL platform wrappers have finished
 // their stagger: last platform delay + duration + 30ms compositing buffer.
-// Recalculates automatically if STAGGER_* constants or PLATFORMS.length change.
 const PLATFORM_STAGGER_DONE_MS =
   STAGGER_BASE_MS + PLATFORMS.length * STAGGER_STEP_MS + STAGGER_DUR_MS + 30;
 
 // Close-stagger constants — reverse of the open stagger.
-// Items stagger OUT bottom-to-top; panel slides away only after all items are gone.
-const STAGGER_CLOSE_DUR_MS = 60; // each item's fade-out duration (faster than open)
-// Total stagger slots: DEPENDENCIES label + platforms + sep+label+links (EXPLORE) + sep+label+links (RESOURCES)
+const STAGGER_CLOSE_DUR_MS = 60;
 const STAGGER_ITEM_COUNT =
   1 + PLATFORMS.length + 1 + 1 + PAGE_LINKS.length + 1 + 1 + UTILITY_LINKS.length;
-// Panel slide delay = time until the last item (idx 0) finishes closing
 const STAGGER_CLOSE_DONE_MS =
   (STAGGER_ITEM_COUNT - 1) * STAGGER_STEP_MS + STAGGER_CLOSE_DUR_MS;
 
@@ -63,20 +59,20 @@ const CATEGORY_LABEL: React.CSSProperties = {
   color: "rgba(255,255,255,0.35)",
 };
 
+// clamp: 22px floor on mobile so "GT-AERO" (7 chars) fits inside a 375px panel.
 const PLATFORM_TEXT: React.CSSProperties = {
   fontFamily: "var(--font-display)",
-  fontSize: "36px",
+  fontSize: "clamp(22px, 5.5vw, 36px)",
   fontWeight: 600,
   letterSpacing: "-0.02em",
   color: "#ffffff",
   lineHeight: 1.1,
 };
 
-// Single style for all 8 navigation links (page links + utility links).
-// Mono is reserved for section labels and technical metadata only.
+// clamp: subtle floor ensures legibility even on 320px viewports.
 const LINK_TEXT: React.CSSProperties = {
   fontFamily: "var(--font-display)",
-  fontSize: "17px",
+  fontSize: "clamp(14px, 4vw, 17px)",
   fontWeight: 400,
   letterSpacing: "-0.01em",
   color: "#ffffff",
@@ -96,6 +92,8 @@ export function IntelligenceVault({ isOpen, onClose, triggerRef }: Props) {
   const [hoveredLinkId, setHoveredLinkId]     = useState<string | null>(null);
   const [reducedMotion, setReducedMotion]     = useState(false);
   const [hasStaggered, setHasStaggered]       = useState(false);
+  // true when viewport width < 768px — drives the entire mobile layout branch.
+  const [isMobile, setIsMobile]               = useState(false);
 
   const panelRef     = useRef<HTMLDivElement>(null);
   const platformRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -106,6 +104,15 @@ export function IntelligenceVault({ isOpen, onClose, triggerRef }: Props) {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
     setReducedMotion(mq.matches);
     const h = (e: MediaQueryListEvent) => setReducedMotion(e.matches);
+    mq.addEventListener("change", h);
+    return () => mq.removeEventListener("change", h);
+  }, []);
+
+  // ── mobile breakpoint (<768px) ────────────────────────────────────────────
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    setIsMobile(mq.matches);
+    const h = (e: MediaQueryListEvent) => setIsMobile(e.matches);
     mq.addEventListener("change", h);
     return () => mq.removeEventListener("change", h);
   }, []);
@@ -148,9 +155,8 @@ export function IntelligenceVault({ isOpen, onClose, triggerRef }: Props) {
 
   // ── clear platform stagger after animation completes ─────────────────────
   // Once hasStaggered=true, platformWrap/platformInner return {} so the
-  // delayed transition property is removed from the DOM. Without this, the
-  // 120ms delay persists and interferes with the button's 80ms selection
-  // opacity (the GT-AERO "half-de-emphasis" bug on mouse-out).
+  // delayed transition is removed. Without this, the 120ms delay persists
+  // and interferes with the button's 80ms selection opacity (GT-AERO bug).
   useEffect(() => {
     if (!isOpen) {
       setHasStaggered(false);
@@ -161,9 +167,8 @@ export function IntelligenceVault({ isOpen, onClose, triggerRef }: Props) {
   }, [isOpen]);
 
   // ── platform indicator measurement ───────────────────────────────────────
-  // NOTE: wrapper divs for platforms use opacity-only (no transform), so
-  // offsetParent resolution is unaffected in Chrome and btn.offsetTop is
-  // correctly relative to the connector div (position:relative).
+  // Wrapper divs use opacity-only (no transform) so Chrome doesn't treat
+  // them as offsetParent — btn.offsetTop stays correct against connector.
   useEffect(() => {
     const idx = PLATFORMS.findIndex((p) => p.id === selectedId);
     const btn = platformRefs.current[idx];
@@ -197,11 +202,9 @@ export function IntelligenceVault({ isOpen, onClose, triggerRef }: Props) {
 
   // ── stagger helpers ───────────────────────────────────────────────────────
 
-  // Reverse delay for the close stagger: last item (highest idx) closes first.
   const closeDelay = (idx: number) =>
     `${(STAGGER_ITEM_COUNT - 1 - idx) * STAGGER_STEP_MS}ms`;
 
-  // For non-platform items: full opacity + translateY on the wrapper div.
   const staggerWrap = (idx: number): React.CSSProperties => {
     if (reducedMotion) return {};
     if (isOpen) {
@@ -220,11 +223,8 @@ export function IntelligenceVault({ isOpen, onClose, triggerRef }: Props) {
     };
   };
 
-  // For platform items: ONLY opacity on the wrapper div.
-  // Applying transform here would make Chrome treat the div as an offsetParent,
-  // breaking btn.offsetTop measurement. The translateY goes on an inner span instead.
-  // After hasStaggered=true the wrapper returns {} — no inline opacity or transition —
-  // so the button's own 80ms opacity transition is the sole controller (no delay conflict).
+  // Platform wrapper: opacity-ONLY (no transform) — preserves btn.offsetTop.
+  // Returns {} after stagger completes so button's own opacity transition takes over.
   const platformWrap = (idx: number): React.CSSProperties => {
     if (reducedMotion || hasStaggered) return {};
     if (isOpen) {
@@ -241,7 +241,7 @@ export function IntelligenceVault({ isOpen, onClose, triggerRef }: Props) {
     };
   };
 
-  // translateY for the inner span inside each platform button.
+  // translateY lives on the inner span — outside the offsetParent chain.
   const platformInner = (idx: number): React.CSSProperties => {
     const base = { display: "flex", alignItems: "baseline", gap: "10px" } as const;
     if (reducedMotion || hasStaggered) return base;
@@ -276,42 +276,50 @@ export function IntelligenceVault({ isOpen, onClose, triggerRef }: Props) {
         pointerEvents: isOpen ? "auto" : "none",
       }}
     >
-      {/* Left half — click closes. Fades in/out independently so it stays in sync with the panel slide. */}
-      <div
-        aria-hidden="true"
-        onClick={onClose}
-        style={{
-          flex: "0 0 50%",
-          backdropFilter: "blur(8px)",
-          backgroundColor: "rgba(0, 0, 0, 0.45)",
-          cursor: "default",
-          opacity: isOpen ? 1 : 0,
-          transition: isOpen
-            ? `opacity ${dur(150)} ${EASE}`
-            : `opacity ${dur(150)} ${EASE} ${reducedMotion ? "0ms" : `${STAGGER_CLOSE_DONE_MS}ms`}`,
-        }}
-      />
+      {/* Left half — desktop only (backdrop + click-to-close).
+          Hidden on mobile: panel takes 100% width, X button closes instead. */}
+      {!isMobile && (
+        <div
+          aria-hidden="true"
+          onClick={onClose}
+          style={{
+            flex: "0 0 50%",
+            backdropFilter: "blur(8px)",
+            backgroundColor: "rgba(0, 0, 0, 0.45)",
+            cursor: "pointer",
+            opacity: isOpen ? 1 : 0,
+            transition: isOpen
+              ? `opacity ${dur(150)} ${EASE}`
+              : `opacity ${dur(150)} ${EASE} ${reducedMotion ? "0ms" : `${STAGGER_CLOSE_DONE_MS}ms`}`,
+          }}
+        />
+      )}
 
-      {/* Right half — vault panel */}
+      {/* ── Vault panel ───────────────────────────────────────────────────── */}
+      {/* Desktop: right 50%, side-by-side (list | reveal zone).
+          Mobile:  full 100%, stacked vertically (list → reveal zone).
+          The panel itself scrolls on mobile; on desktop the list zone scrolls. */}
       <div
         ref={panelRef}
         style={{
           position: "relative",
-          flex: "0 0 50%",
+          flex: isMobile ? "0 0 100%" : "0 0 50%",
           height: "100%",
           display: "flex",
+          flexDirection: isMobile ? "column" : "row",
           backgroundColor: "rgba(0, 0, 0, 0.85)",
           backdropFilter: "blur(12px)",
-          borderLeft: "1px solid rgba(255, 255, 255, 0.12)",
+          borderLeft: isMobile ? "none" : "1px solid rgba(255, 255, 255, 0.12)",
           transform: isOpen ? "translateX(0)" : "translateX(100%)",
-          // On close: panel slides out only after the reverse stagger completes.
           transition: isOpen
             ? `transform ${dur(150)} ${EASE}`
             : `transform ${dur(150)} ${EASE} ${reducedMotion ? "0ms" : `${STAGGER_CLOSE_DONE_MS}ms`}`,
-          overflow: "hidden",
+          // Mobile: panel scrolls vertically. Desktop: list zone handles overflow.
+          overflowY: isMobile ? "auto" : "hidden",
+          overflowX: "hidden",
         }}
       >
-        {/* Close button */}
+        {/* Close button — same position on both mobile and desktop */}
         <button
           type="button"
           onClick={onClose}
@@ -336,31 +344,34 @@ export function IntelligenceVault({ isOpen, onClose, triggerRef }: Props) {
           </svg>
         </button>
 
-        {/* ── List zone ──────────────────────────────────────────────────── */}
-        {/* height: 100% is required: the parent panel is display:flex (row),
-            and Chrome collapses overflow:auto children to content height instead
-            of stretching them — breaking justify-content:space-between.
-            Cascade: outer dialog (inset:0) → panel (height:100%) → list zone (height:100%). */}
+        {/* ── List zone ──────────────────────────────────────────────────────
+            Desktop: fixed 55% column, height 100%, internal overflow-y scroll.
+            Mobile:  natural (auto) height in column flow; parent panel scrolls.
+            The height:100% + overflowY:auto on desktop forces Chrome to honour
+            justify-content on the flex column (cascade: dialog→panel→list zone). */}
         <div
           style={{
-            flex: "0 0 55%",
-            height: "100%",
+            flex: isMobile ? "none" : "0 0 55%",
+            height: isMobile ? "auto" : "100%",
             display: "flex",
             flexDirection: "column",
-            padding: "4dvh 32px",
-            overflowY: "auto",
+            padding: isMobile ? "clamp(24px, 5dvh, 48px) 20px" : "4dvh 32px",
+            overflowY: isMobile ? "visible" : "auto",
             boxSizing: "border-box",
           }}
         >
 
-          {/* ── Group: DEPENDENCIES — flex:1 section, content centered vertically */}
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
-            {/* stagger 0: label */}
+          {/* ── Group: DEPENDENCIES ──────────────────────────────────────── */}
+          <div style={{
+            flex: isMobile ? "none" : 1,
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: isMobile ? "flex-start" : "center",
+          }}>
             <div style={staggerWrap(0)}>
               <div style={CATEGORY_LABEL}>DEPENDENCIES</div>
             </div>
 
-            {/* Connector — marginTop +4px extra gap under label */}
             <div style={{ position: "relative", paddingLeft: "18px", marginTop: "10px" }}>
               {/* Base line */}
               <div
@@ -388,15 +399,16 @@ export function IntelligenceVault({ isOpen, onClose, triggerRef }: Props) {
                 }}
               />
 
-              {/* stagger 1–4: platform buttons
-                  Wrapper uses opacity-ONLY so Chrome doesn't treat it as
-                  offsetParent — btn.offsetTop stays correct against connector.
-                  translateY lives on an inner span. */}
+              {/* Platform buttons — stagger 1–4.
+                  Wrapper: opacity-only (no transform) so Chrome doesn't change
+                  offsetParent, keeping btn.offsetTop correct for the indicator.
+                  onClick added for reliable tap-to-select on touch devices. */}
               {PLATFORMS.map((item, idx) => (
                 <div key={item.id} style={platformWrap(idx + 1)}>
                   <button
                     ref={(el) => { platformRefs.current[idx] = el; }}
                     type="button"
+                    onClick={() => setSelectedId(item.id)}
                     onMouseEnter={() => setSelectedId(item.id)}
                     onFocus={() => setSelectedId(item.id)}
                     aria-label={item.name}
@@ -408,15 +420,10 @@ export function IntelligenceVault({ isOpen, onClose, triggerRef }: Props) {
                       padding: "8px 0",
                       width: "100%",
                       textAlign: "left",
-                      // Selection opacity logic:
-                      // • isOpen=false (closing): keep selection opacity so the platform
-                      //   fades out at full/dim rather than snapping before the wrapper
-                      //   stagger closes it. (!isOpen short-circuits to selection.)
-                      // • isOpen=true, hasStaggered=false (open stagger in progress):
-                      //   all buttons neutral at 0.22 — prevents GT-AERO from starting
-                      //   at opacity:1 before a transition has run (GT-AERO bug fix).
-                      // • isOpen=true, hasStaggered=true (steady state): selection opacity.
-                      //   GT-AERO animates 0.22→1 cleanly, matching any other platform.
+                      // Selection opacity:
+                      // • closing (!isOpen): use selection so items fade at correct weight.
+                      // • open stagger in progress (!hasStaggered): all at 0.22 (GT-AERO bug fix).
+                      // • steady state (hasStaggered): selection opacity — GT-AERO 0.22→1 cleanly.
                       // • reducedMotion: always apply selection immediately.
                       opacity: (!isOpen || hasStaggered || reducedMotion)
                         ? (selectedId === item.id ? 1 : 0.22)
@@ -446,129 +453,158 @@ export function IntelligenceVault({ isOpen, onClose, triggerRef }: Props) {
             </div>
           </div>
 
-          {/* ── Group: EXPLORE — flex:1 section, separator at boundary, content centered */}
-          <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-            {/* stagger 5: separator marks the top boundary of this section */}
+          {/* ── Group: EXPLORE ───────────────────────────────────────────── */}
+          <div style={{
+            flex: isMobile ? "none" : 1,
+            display: "flex",
+            flexDirection: "column",
+            marginTop: isMobile ? "24px" : undefined,
+          }}>
+            {/* stagger 5: separator */}
             <div style={staggerWrap(5)}>
               <div style={{ height: "1px", backgroundColor: "rgba(255,255,255,0.1)" }} />
             </div>
-            {/* centered content within the remaining section height */}
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
-            {/* stagger 6: label */}
-            <div style={staggerWrap(6)}>
-              <div style={{ ...CATEGORY_LABEL, marginBottom: "8px" }}>EXPLORE</div>
-            </div>
-            {/* stagger 7–10: page links */}
-            <div style={{ paddingLeft: "18px" }}>
-              {PAGE_LINKS.map((item, idx) => (
-                <div key={item.id} style={staggerWrap(idx + 7)}>
-                  <button
-                    type="button"
-                    aria-label={item.name}
-                    onMouseEnter={() => setHoveredLinkId(item.id)}
-                    onMouseLeave={() => setHoveredLinkId(null)}
-                    onFocus={() => setHoveredLinkId(item.id)}
-                    onBlur={() => setHoveredLinkId(null)}
-                    className="opacity-60 hover:opacity-100 focus-visible:opacity-100"
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      padding: "6px 0",
-                      width: "100%",
-                      textAlign: "left",
-                      transition: `opacity ${dur(80)} ${EASE}`,
-                    }}
-                  >
-                    <span
-                      aria-hidden="true"
+            <div style={{
+              flex: isMobile ? "none" : 1,
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: isMobile ? "flex-start" : "center",
+            }}>
+              {/* stagger 6: label */}
+              <div style={staggerWrap(6)}>
+                <div style={{ ...CATEGORY_LABEL, marginBottom: "8px", marginTop: isMobile ? "16px" : undefined }}>
+                  EXPLORE
+                </div>
+              </div>
+              {/* stagger 7–10: page links */}
+              <div style={{ paddingLeft: "18px" }}>
+                {PAGE_LINKS.map((item, idx) => (
+                  <div key={item.id} style={staggerWrap(idx + 7)}>
+                    <button
+                      type="button"
+                      aria-label={item.name}
+                      onMouseEnter={() => setHoveredLinkId(item.id)}
+                      onMouseLeave={() => setHoveredLinkId(null)}
+                      onFocus={() => setHoveredLinkId(item.id)}
+                      onBlur={() => setHoveredLinkId(null)}
+                      className="opacity-60 hover:opacity-100 focus-visible:opacity-100"
                       style={{
-                        flexShrink: 0,
-                        width: 2,
-                        height: 12,
-                        backgroundColor: "rgba(255,255,255,0.75)",
-                        opacity: hoveredLinkId === item.id ? 1 : 0,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        padding: "6px 0",
+                        width: "100%",
+                        textAlign: "left",
                         transition: `opacity ${dur(80)} ${EASE}`,
                       }}
-                    />
-                    <span style={LINK_TEXT}>{item.name}</span>
-                  </button>
-                </div>
-              ))}
+                    >
+                      <span
+                        aria-hidden="true"
+                        style={{
+                          flexShrink: 0,
+                          width: 2,
+                          height: 12,
+                          backgroundColor: "rgba(255,255,255,0.75)",
+                          opacity: hoveredLinkId === item.id ? 1 : 0,
+                          transition: `opacity ${dur(80)} ${EASE}`,
+                        }}
+                      />
+                      <span style={LINK_TEXT}>{item.name}</span>
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
-            </div>{/* end centering inner div */}
-          </div>{/* end EXPLORE section */}
+          </div>
 
-          {/* ── Group: RESOURCES — flex:1 section, separator at boundary, content centered */}
-          <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-            {/* stagger 11: separator marks the top boundary of this section */}
+          {/* ── Group: RESOURCES ─────────────────────────────────────────── */}
+          <div style={{
+            flex: isMobile ? "none" : 1,
+            display: "flex",
+            flexDirection: "column",
+            marginTop: isMobile ? "24px" : undefined,
+          }}>
+            {/* stagger 11: separator */}
             <div style={staggerWrap(11)}>
               <div style={{ height: "1px", backgroundColor: "rgba(255,255,255,0.1)" }} />
             </div>
-            {/* centered content within the remaining section height */}
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
-            {/* stagger 12: label */}
-            <div style={staggerWrap(12)}>
-              <div style={{ ...CATEGORY_LABEL, marginBottom: "8px" }}>RESOURCES</div>
-            </div>
-            {/* stagger 13–16: utility links */}
-            <div style={{ paddingLeft: "18px" }}>
-              {UTILITY_LINKS.map((item, idx) => (
-                <div key={item.id} style={staggerWrap(idx + 13)}>
-                  <button
-                    type="button"
-                    aria-label={item.name}
-                    onMouseEnter={() => setHoveredLinkId(item.id)}
-                    onMouseLeave={() => setHoveredLinkId(null)}
-                    onFocus={() => setHoveredLinkId(item.id)}
-                    onBlur={() => setHoveredLinkId(null)}
-                    className="opacity-60 hover:opacity-100 focus-visible:opacity-100"
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      padding: "6px 0",
-                      width: "100%",
-                      textAlign: "left",
-                      transition: `opacity ${dur(80)} ${EASE}`,
-                    }}
-                  >
-                    <span
-                      aria-hidden="true"
+            <div style={{
+              flex: isMobile ? "none" : 1,
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: isMobile ? "flex-start" : "center",
+            }}>
+              {/* stagger 12: label */}
+              <div style={staggerWrap(12)}>
+                <div style={{ ...CATEGORY_LABEL, marginBottom: "8px", marginTop: isMobile ? "16px" : undefined }}>
+                  RESOURCES
+                </div>
+              </div>
+              {/* stagger 13–16: utility links */}
+              <div style={{ paddingLeft: "18px" }}>
+                {UTILITY_LINKS.map((item, idx) => (
+                  <div key={item.id} style={staggerWrap(idx + 13)}>
+                    <button
+                      type="button"
+                      aria-label={item.name}
+                      onMouseEnter={() => setHoveredLinkId(item.id)}
+                      onMouseLeave={() => setHoveredLinkId(null)}
+                      onFocus={() => setHoveredLinkId(item.id)}
+                      onBlur={() => setHoveredLinkId(null)}
+                      className="opacity-60 hover:opacity-100 focus-visible:opacity-100"
                       style={{
-                        flexShrink: 0,
-                        width: 2,
-                        height: 12,
-                        backgroundColor: "rgba(255,255,255,0.75)",
-                        opacity: hoveredLinkId === item.id ? 1 : 0,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        padding: "6px 0",
+                        width: "100%",
+                        textAlign: "left",
                         transition: `opacity ${dur(80)} ${EASE}`,
                       }}
-                    />
-                    <span style={LINK_TEXT}>{item.name}</span>
-                  </button>
-                </div>
-              ))}
+                    >
+                      <span
+                        aria-hidden="true"
+                        style={{
+                          flexShrink: 0,
+                          width: 2,
+                          height: 12,
+                          backgroundColor: "rgba(255,255,255,0.75)",
+                          opacity: hoveredLinkId === item.id ? 1 : 0,
+                          transition: `opacity ${dur(80)} ${EASE}`,
+                        }}
+                      />
+                      <span style={LINK_TEXT}>{item.name}</span>
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
-            </div>{/* end centering inner div */}
-          </div>{/* end RESOURCES section */}
+          </div>
+
+          {/* Bottom clearance so last link isn't flush against reveal zone border */}
+          {isMobile && <div aria-hidden="true" style={{ height: "8px" }} />}
 
         </div>
 
-        {/* ── Reveal zone ────────────────────────────────────────────────── */}
+        {/* ── Reveal zone ────────────────────────────────────────────────────
+            Desktop: right column inside panel (flex:1, borderLeft).
+            Mobile:  stacked below the list, full width, borderTop separator.
+            Isometric placeholder reduced on mobile (120px → 40px). */}
         <div
           style={{
-            flex: 1,
+            flex: isMobile ? "none" : 1,
             display: "flex",
             flexDirection: "column",
-            justifyContent: "center",
-            padding: "80px 32px 80px 24px",
-            borderLeft: "1px solid rgba(255,255,255,0.06)",
+            justifyContent: isMobile ? "flex-start" : "center",
+            padding: isMobile ? "24px 20px 48px" : "80px 32px 80px 24px",
+            borderLeft: isMobile ? "none" : "1px solid rgba(255,255,255,0.06)",
+            borderTop: isMobile ? "1px solid rgba(255,255,255,0.06)" : "none",
           }}
         >
           <div
@@ -579,8 +615,7 @@ export function IntelligenceVault({ isOpen, onClose, triggerRef }: Props) {
           >
             {activeItem && (
               <>
-                {/* Isometric placeholder */}
-                <div style={{ height: "120px", marginBottom: "24px" }} aria-hidden="true" />
+                <div style={{ height: isMobile ? "40px" : "120px", marginBottom: "24px" }} aria-hidden="true" />
 
                 <div
                   style={{
