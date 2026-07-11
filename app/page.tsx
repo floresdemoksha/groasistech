@@ -1,6 +1,7 @@
 import { Hero } from "./components/Hero";
 import { StatementSection } from "./components/StatementSection";
 import { DependenciesSection } from "./components/DependenciesSection";
+import { ClosingSection } from "./components/ClosingSection";
 
 export default function Home() {
   return (
@@ -11,6 +12,7 @@ export default function Home() {
       />
       <StatementSection />
       <DependenciesSection />
+      <ClosingSection />
     </main>
   );
 }

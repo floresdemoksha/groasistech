@@ -47,6 +47,18 @@ const PLATFORMS = [
       { name: "Infrastructure Specification",  type: "PDF", size: "0.0 MB", href: "#" }, // TODO: real file
     ],
   },
+  {
+    id: "other",
+    index: "04",
+    name: "OTHER",
+    href: "#", // TODO: create /platforms/other page when ready
+    overview: "Cross-domain applied research",
+    docs: [
+      { name: "Applied Research Overview",    type: "PDF", size: "0.0 MB", href: "#" }, // TODO: real file
+      { name: "Cross-Domain Patent Filing",   type: "PDF", size: "0.0 MB", href: "#" }, // TODO: real file
+      { name: "Research Framework",           type: "PDF", size: "0.0 MB", href: "#" }, // TODO: real file
+    ],
+  },
 ];
 
 // When typing is sequential, platform[i] starts after all previous ones finish + a pause.
@@ -61,19 +73,19 @@ const typingStartMs = (idx: number): number => {
 export function DependenciesSection() {
   const sectionRef = useRef<HTMLElement>(null);
 
-  // Multi-open accordion — each platform toggles independently.
-  const [openIds, setOpenIds] = useState<Set<string>>(() => new Set(["gt-aero"]));
+  // Exclusive accordion — at most one platform open at a time. null = all collapsed.
+  const [openId, setOpenId] = useState<string | null>(null);
 
   // revealed[i] = true when row i should fade+rise in (tied to its typing start).
-  const [revealed, setRevealed] = useState([false, false, false]);
+  const [revealed, setRevealed] = useState([false, false, false, false]);
   const [reducedMotion, setReducedMotion] = useState(false);
 
   // Typing animation
-  const [typedChars, setTypedChars] = useState<[number, number, number]>([0, 0, 0]);
+  const [typedChars, setTypedChars] = useState<[number, number, number, number]>([0, 0, 0, 0]);
   const [cursorOn, setCursorOn] = useState(true);
 
-  const timersRef   = useRef<ReturnType<typeof setTimeout>[]>([]);
-  const cursorRef   = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const cursorRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // prefers-reduced-motion
   useEffect(() => {
@@ -88,11 +100,12 @@ export function DependenciesSection() {
   useEffect(() => {
     if (reducedMotion) {
       // Instant reveal — no typing, no stagger, no cursor
-      setRevealed([true, true, true]);
+      setRevealed([true, true, true, true]);
       setTypedChars([
         PLATFORMS[0].name.length,
         PLATFORMS[1].name.length,
         PLATFORMS[2].name.length,
+        PLATFORMS[3].name.length,
       ]);
       return;
     }
@@ -117,7 +130,7 @@ export function DependenciesSection() {
           timers.push(
             setTimeout(() => {
               setRevealed((prev) => {
-                const next: [boolean, boolean, boolean] = [prev[0], prev[1], prev[2]];
+                const next: [boolean, boolean, boolean, boolean] = [prev[0], prev[1], prev[2], prev[3]];
                 next[pIdx] = true;
                 return next;
               });
@@ -134,7 +147,7 @@ export function DependenciesSection() {
             timers.push(
               setTimeout(() => {
                 setTypedChars((prev) => {
-                  const next: [number, number, number] = [prev[0], prev[1], prev[2]];
+                  const next: [number, number, number, number] = [prev[0], prev[1], prev[2], prev[3]];
                   next[platformIdx] = charCount;
                   return next;
                 });
@@ -166,12 +179,7 @@ export function DependenciesSection() {
   }, [reducedMotion]);
 
   const toggle = (id: string) => {
-    setOpenIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    setOpenId((prev) => (prev === id ? null : id));
   };
 
   // Platform currently mid-typing (first one with chars > 0 but not finished).
@@ -183,9 +191,13 @@ export function DependenciesSection() {
   return (
     <section
       ref={sectionRef}
+      data-header-theme="dark"
       style={{
         backgroundColor: "var(--color-void)",
-        padding: "clamp(32px, 4dvh, 56px) clamp(24px, 6vw, 80px)",
+        paddingTop: "clamp(72px, 9dvh, 120px)",
+        paddingBottom: "clamp(120px, 14dvh, 200px)",
+        paddingLeft: "clamp(24px, 6vw, 80px)",
+        paddingRight: "clamp(24px, 6vw, 80px)",
       }}
     >
       {/* Section label */}
@@ -197,7 +209,7 @@ export function DependenciesSection() {
           letterSpacing: "0.1em",
           textTransform: "uppercase",
           color: "var(--color-text-muted)",
-          margin: "0 0 clamp(32px, 5dvh, 56px)",
+          margin: "0 0 clamp(56px, 7dvh, 88px)",
         }}
       >
         Our Dependencies
@@ -210,7 +222,7 @@ export function DependenciesSection() {
       />
 
       {PLATFORMS.map((platform, idx) => {
-        const isOpen = openIds.has(platform.id);
+        const isOpen = openId === platform.id;
         const isRevealed = revealed[idx];
         const showCursor = !reducedMotion && idx === currentTypingIdx && cursorOn;
 
@@ -231,7 +243,7 @@ export function DependenciesSection() {
                 display: "flex",
                 alignItems: "center",
                 gap: "12px",
-                padding: "clamp(12px, 1.8dvh, 20px) 0",
+                padding: "clamp(28px, 3.8dvh, 52px) 0",
               }}
             >
               {/* Numeric index — decorative, not interactive */}
@@ -262,7 +274,7 @@ export function DependenciesSection() {
                   minWidth: 0,
                   fontFamily: "var(--font-display)",
                   fontSize: "clamp(36px, 6vw, 88px)",
-                  fontWeight: 600,
+                  fontWeight: 450,
                   letterSpacing: "-0.02em",
                   lineHeight: 1.05,
                   textDecoration: "none",
@@ -379,7 +391,7 @@ export function DependenciesSection() {
                     flexWrap: "wrap",
                     gap: "clamp(24px, 4vw, 64px)",
                     paddingLeft: "calc(2.5rem + 12px)",
-                    paddingBottom: "clamp(24px, 3.5dvh, 48px)",
+                    paddingBottom: "clamp(48px, 6dvh, 80px)",
                     opacity: isOpen ? 1 : 0,
                     transition: reducedMotion
                       ? "none"

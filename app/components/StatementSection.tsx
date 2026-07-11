@@ -49,6 +49,7 @@ export function StatementSection() {
   return (
     <section
       ref={sectionRef}
+      data-header-theme="dark"
       style={{
         // reducedMotion: no pinning — section is just one viewport tall, static.
         minHeight: reducedMotion ? undefined : `${SECTION_HEIGHT_VH}dvh`,

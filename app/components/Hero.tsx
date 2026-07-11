@@ -1,4 +1,3 @@
-import { Header } from "./Header";
 import { HeroVideo } from "./HeroVideo";
 import { ScrollIndicator } from "./ScrollIndicator";
 
@@ -9,12 +8,9 @@ interface HeroProps {
 
 export function Hero({ videoSrc, posterSrc }: HeroProps) {
   return (
-    <section className="relative isolate h-[115dvh] w-full overflow-hidden">
+    <section className="relative isolate h-[115dvh] w-full overflow-hidden" data-header-theme="dark">
       {/* Fondo: video o placeholder */}
       <HeroVideo videoSrc={videoSrc} posterSrc={posterSrc} />
-
-      {/* Header sticky */}
-      <Header />
 
       {/* Contenido central */}
       <div
