@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ScrollIndicator } from "./ScrollIndicator";
 
 const EASE = "cubic-bezier(0, 0, 0.2, 1)";
 
@@ -45,6 +46,11 @@ export function StatementSection() {
     onScroll();
     return () => window.removeEventListener("scroll", onScroll);
   }, [reducedMotion]);
+
+  // Indicator appears once all words are illuminated and fades before the section ends.
+  // In reducedMotion mode progress is always 0, so we show it statically instead.
+  const indicatorVisible =
+    reducedMotion || (progress > threshold(WORDS.length - 1) && progress < 0.96);
 
   return (
     <section
@@ -113,6 +119,8 @@ export function StatementSection() {
                 </span>
               ))}
         </p>
+
+        <ScrollIndicator visible={indicatorVisible} />
       </div>
     </section>
   );

@@ -80,7 +80,7 @@ export function ClosingSection() {
   return (
     <section
       data-header-theme="light"
-      style={{ backgroundColor: BG, color: TEXT }}
+      style={{ backgroundColor: BG, color: TEXT, scrollSnapAlign: "start", scrollSnapStop: "always" }}
     >
       {/* ════════════════════════════════════════════════════════
           BLOQUE 1 — CTA (altura completa del viewport)

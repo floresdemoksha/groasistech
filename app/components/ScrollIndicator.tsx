@@ -2,34 +2,42 @@
 
 import { useEffect, useState } from "react";
 
-export function ScrollIndicator() {
-  const [visible, setVisible] = useState(true);
+interface Props {
+  // When provided, visibility is controlled externally (e.g. progress-based).
+  // When omitted, the component self-manages: visible only while scrollY < 100px.
+  visible?: boolean;
+}
+
+export function ScrollIndicator({ visible: visibleProp }: Props) {
+  const [internalVisible, setInternalVisible] = useState(true);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
 
   useEffect(() => {
-    const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
-    setPrefersReducedMotion(motionQuery.matches);
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setPrefersReducedMotion(mq.matches);
+    const motionHandler = (e: MediaQueryListEvent) => setPrefersReducedMotion(e.matches);
+    mq.addEventListener("change", motionHandler);
 
-    const motionHandler = (e: MediaQueryListEvent) => {
-      setPrefersReducedMotion(e.matches);
-    };
-    motionQuery.addEventListener("change", motionHandler);
+    // Scroll listener only when self-managed (Hero). External callers supply visible prop.
+    // deps=[] is intentional: the mode (self-managed vs external) is fixed per mount.
+    if (visibleProp === undefined) {
+      const handleScroll = () => setInternalVisible(window.scrollY < 100);
+      window.addEventListener("scroll", handleScroll, { passive: true });
+      return () => {
+        mq.removeEventListener("change", motionHandler);
+        window.removeEventListener("scroll", handleScroll);
+      };
+    }
 
-    const handleScroll = () => {
-      setVisible(window.scrollY < 100);
-    };
-    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => mq.removeEventListener("change", motionHandler);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-    return () => {
-      motionQuery.removeEventListener("change", motionHandler);
-      window.removeEventListener("scroll", handleScroll);
-    };
-  }, []);
+  const isVisible = visibleProp !== undefined ? visibleProp : internalVisible;
 
   return (
     <div
       className={`absolute bottom-[var(--space-4)] left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 transition-opacity ${
-        visible ? "opacity-100" : "opacity-0"
+        isVisible ? "opacity-100" : "opacity-0 pointer-events-none"
       }`}
       style={{
         transitionDuration: "var(--timing-base)",
@@ -37,10 +45,10 @@ export function ScrollIndicator() {
       }}
       aria-hidden="true"
     >
-      {/* Linea vertical estilo HUD */}
+      {/* 1px vertical line */}
       <div className="w-px h-8 bg-[var(--color-border)]" />
 
-      {/* Flecha */}
+      {/* Chevron — animates independently of the show/hide opacity on the outer div */}
       <svg
         width="12"
         height="12"
@@ -49,20 +57,38 @@ export function ScrollIndicator() {
         stroke="currentColor"
         strokeWidth="1"
         className={`text-[var(--color-text-muted)] ${
-          prefersReducedMotion ? "" : "animate-scroll-hint"
+          prefersReducedMotion ? "opacity-60" : "animate-scroll-hint"
         }`}
       >
         <path d="M1 4L6 9L11 4" />
       </svg>
 
       <style jsx>{`
+        /*
+         * Downward nudge (5px) with opacity rise, then return, then pause.
+         * Per-keyframe animation-timing-function removes the linear V-shape
+         * artifact at the loop restart: the chevron now eases out on both
+         * strokes and rests at the origin for ~30% of the cycle before repeating.
+         */
         @keyframes scroll-hint {
-          0%, 100% { opacity: 0.25; }
-          50% { opacity: 0.9; }
+          0%, 15% {
+            opacity: 0.3;
+            transform: translateY(0);
+            animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
+          }
+          50% {
+            opacity: 0.85;
+            transform: translateY(5px);
+            animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
+          }
+          80%, 100% {
+            opacity: 0.3;
+            transform: translateY(0);
+          }
         }
 
         .animate-scroll-hint {
-          animation: scroll-hint 1.2s linear infinite;
+          animation: scroll-hint 2s linear infinite;
         }
 
         @media (prefers-reduced-motion: reduce) {
