@@ -47,10 +47,9 @@ export function StatementSection() {
     return () => window.removeEventListener("scroll", onScroll);
   }, [reducedMotion]);
 
-  // Indicator appears once all words are illuminated and fades before the section ends.
-  // In reducedMotion mode progress is always 0, so we show it statically instead.
-  const indicatorVisible =
-    reducedMotion || (progress > threshold(WORDS.length - 1) && progress < 0.96);
+  // Visible from the moment the section enters the viewport; fades near the end.
+  // In reducedMotion mode progress is always 0, so we derive visibility directly.
+  const indicatorVisible = reducedMotion ? true : progress < 0.96;
 
   return (
     <section

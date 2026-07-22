@@ -45,19 +45,16 @@ export function ScrollIndicator({ visible: visibleProp }: Props) {
       }}
       aria-hidden="true"
     >
-      {/* 1px vertical line */}
-      <div className="w-px h-8 bg-[var(--color-border)]" />
-
       {/* Chevron — animates independently of the show/hide opacity on the outer div */}
       <svg
-        width="12"
-        height="12"
+        width="18"
+        height="18"
         viewBox="0 0 12 12"
         fill="none"
         stroke="currentColor"
-        strokeWidth="1"
-        className={`text-[var(--color-text-muted)] ${
-          prefersReducedMotion ? "opacity-60" : "animate-scroll-hint"
+        strokeWidth="1.5"
+        className={`text-white ${
+          prefersReducedMotion ? "opacity-100" : "animate-scroll-hint"
         }`}
       >
         <path d="M1 4L6 9L11 4" />
@@ -72,17 +69,17 @@ export function ScrollIndicator({ visible: visibleProp }: Props) {
          */
         @keyframes scroll-hint {
           0%, 15% {
-            opacity: 0.3;
+            opacity: 0.5;
             transform: translateY(0);
             animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
           }
           50% {
-            opacity: 0.85;
+            opacity: 1;
             transform: translateY(5px);
             animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
           }
           80%, 100% {
-            opacity: 0.3;
+            opacity: 0.5;
             transform: translateY(0);
           }
         }
