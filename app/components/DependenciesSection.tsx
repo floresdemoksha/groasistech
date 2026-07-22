@@ -5,8 +5,8 @@ import { useEffect, useRef, useState } from "react";
 
 const EASE = "cubic-bezier(0, 0, 0.2, 1)";
 
-const TYPING_MS = 53;        // ms per character — "system printing" feel
-const TYPING_PAUSE_MS = 120; // pause between platforms (cursor blinks once before next starts)
+const TYPING_MS       = 53;  // ms per character — "system printing" feel
+const TYPING_PAUSE_MS = 120; // pause between platforms
 
 // PLACEHOLDER DOCS — none of these files exist yet.
 // Replace name, type, size, and href with verified documents before publishing.
@@ -47,6 +47,18 @@ const PLATFORMS = [
       { name: "Infrastructure Specification",  type: "PDF", size: "0.0 MB", href: "#" }, // TODO: real file
     ],
   },
+  {
+    id: "other",
+    index: "04",
+    name: "OTHER",
+    href: "/platforms/other",
+    overview: "Cross-domain applied research",
+    docs: [
+      { name: "Applied Research Overview",    type: "PDF", size: "0.0 MB", href: "#" }, // TODO: real file
+      { name: "Cross-Domain Patent Filing",   type: "PDF", size: "0.0 MB", href: "#" }, // TODO: real file
+      { name: "Research Framework",           type: "PDF", size: "0.0 MB", href: "#" }, // TODO: real file
+    ],
+  },
 ];
 
 // When typing is sequential, platform[i] starts after all previous ones finish + a pause.
@@ -61,19 +73,26 @@ const typingStartMs = (idx: number): number => {
 export function DependenciesSection() {
   const sectionRef = useRef<HTMLElement>(null);
 
-  // Multi-open accordion — each platform toggles independently.
-  const [openIds, setOpenIds] = useState<Set<string>>(() => new Set(["gt-aero"]));
+  // Exclusive accordion — at most one platform open at a time. null = all collapsed.
+  const [openId, setOpenId] = useState<string | null>(null);
 
-  // revealed[i] = true when row i should fade+rise in (tied to its typing start).
-  const [revealed, setRevealed] = useState([false, false, false]);
+  // revealed[i] = true when row i should fade+rise in.
+  const [revealed, setRevealed] = useState([false, false, false, false]);
   const [reducedMotion, setReducedMotion] = useState(false);
 
   // Typing animation
-  const [typedChars, setTypedChars] = useState<[number, number, number]>([0, 0, 0]);
+  const [typedChars, setTypedChars] = useState<[number, number, number, number]>([0, 0, 0, 0]);
   const [cursorOn, setCursorOn] = useState(true);
+  // Which row the cursor is currently on. Stays on the last-typed row during inter-platform
+  // pauses so the cursor never disappears mid-sequence. -1 = no cursor.
+  const [cursorPlatformIdx, setCursorPlatformIdx] = useState(-1);
 
-  const timersRef   = useRef<ReturnType<typeof setTimeout>[]>([]);
-  const cursorRef   = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Toggle button hover — inline styles win over Tailwind classes in CSS specificity,
+  // so hover state must be tracked in React state and applied as inline style.
+  const [hoveredButtonId, setHoveredButtonId] = useState<string | null>(null);
+
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const cursorRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // prefers-reduced-motion
   useEffect(() => {
@@ -84,15 +103,17 @@ export function DependenciesSection() {
     return () => mq.removeEventListener("change", handler);
   }, []);
 
-  // Viewport entrance: reveal rows and type names sequentially
+  // Viewport entrance: reveal rows and type names sequentially.
+  // If the section exits the viewport before typing finishes, complete instantly
+  // so no row is left with text half-written.
   useEffect(() => {
     if (reducedMotion) {
-      // Instant reveal — no typing, no stagger, no cursor
-      setRevealed([true, true, true]);
+      setRevealed([true, true, true, true]);
       setTypedChars([
         PLATFORMS[0].name.length,
         PLATFORMS[1].name.length,
         PLATFORMS[2].name.length,
+        PLATFORMS[3].name.length,
       ]);
       return;
     }
@@ -100,58 +121,88 @@ export function DependenciesSection() {
     const el = sectionRef.current;
     if (!el) return;
 
+    // Snaps the animation to its final state immediately.
+    const completeInstantly = () => {
+      timersRef.current.forEach(clearTimeout);
+      timersRef.current = [];
+      if (cursorRef.current) {
+        clearInterval(cursorRef.current);
+        cursorRef.current = null;
+      }
+      setCursorOn(false);
+      setCursorPlatformIdx(-1);
+      setRevealed([true, true, true, true]);
+      setTypedChars([
+        PLATFORMS[0].name.length,
+        PLATFORMS[1].name.length,
+        PLATFORMS[2].name.length,
+        PLATFORMS[3].name.length,
+      ]);
+    };
+
+    // Mutable flag inside the closure — avoids a ref dependency.
+    const state = { typingStarted: false };
+
     const observer = new IntersectionObserver(
       (entries) => {
-        if (!entries[0].isIntersecting) return;
-        observer.disconnect();
+        const isVisible = entries[0].isIntersecting;
 
-        const timers: ReturnType<typeof setTimeout>[] = [];
+        if (isVisible && !state.typingStarted) {
+          state.typingStarted = true;
+          const timers: ReturnType<typeof setTimeout>[] = [];
 
-        // Start cursor blink while typing is in progress
-        cursorRef.current = setInterval(() => setCursorOn((v) => !v), 530);
+          cursorRef.current = setInterval(() => setCursorOn((v) => !v), 530);
 
-        PLATFORMS.forEach((platform, pIdx) => {
-          const startDelay = typingStartMs(pIdx);
+          PLATFORMS.forEach((platform, pIdx) => {
+            const startDelay = typingStartMs(pIdx);
 
-          // Row fades+rises in at the same moment its typing begins
-          timers.push(
-            setTimeout(() => {
-              setRevealed((prev) => {
-                const next: [boolean, boolean, boolean] = [prev[0], prev[1], prev[2]];
-                next[pIdx] = true;
-                return next;
-              });
-            }, startDelay)
-          );
-
-          // Schedule each character reveal
-          for (let c = 1; c <= platform.name.length; c++) {
-            const charDelay = startDelay + c * TYPING_MS;
-            const charCount = c;
-            const platformIdx = pIdx;
-            const isLastChar = pIdx === PLATFORMS.length - 1 && c === platform.name.length;
-
+            // Move cursor to this platform and reveal the row at the same moment.
+            // Keeping cursorPlatformIdx pinned to the current platform during the
+            // inter-platform pause (120ms) prevents the cursor from blinking out.
             timers.push(
               setTimeout(() => {
-                setTypedChars((prev) => {
-                  const next: [number, number, number] = [prev[0], prev[1], prev[2]];
-                  next[platformIdx] = charCount;
+                setCursorPlatformIdx(pIdx);
+                setRevealed((prev) => {
+                  const next: [boolean, boolean, boolean, boolean] = [prev[0], prev[1], prev[2], prev[3]];
+                  next[pIdx] = true;
                   return next;
                 });
-                // Stop cursor after the final character of the final platform
-                if (isLastChar) {
-                  if (cursorRef.current) {
-                    clearInterval(cursorRef.current);
-                    cursorRef.current = null;
-                  }
-                  setCursorOn(false);
-                }
-              }, charDelay)
+              }, startDelay)
             );
-          }
-        });
 
-        timersRef.current = timers;
+            for (let c = 1; c <= platform.name.length; c++) {
+              const charDelay   = startDelay + c * TYPING_MS;
+              const charCount   = c;
+              const platformIdx = pIdx;
+              const isLastChar  = pIdx === PLATFORMS.length - 1 && c === platform.name.length;
+
+              timers.push(
+                setTimeout(() => {
+                  setTypedChars((prev) => {
+                    const next: [number, number, number, number] = [prev[0], prev[1], prev[2], prev[3]];
+                    next[platformIdx] = charCount;
+                    return next;
+                  });
+                  if (isLastChar) {
+                    if (cursorRef.current) {
+                      clearInterval(cursorRef.current);
+                      cursorRef.current = null;
+                    }
+                    setCursorOn(false);
+                    setCursorPlatformIdx(-1);
+                  }
+                }, charDelay)
+              );
+            }
+          });
+
+          timersRef.current = timers;
+
+        } else if (!isVisible && state.typingStarted) {
+          // Section scrolled away before typing finished — snap to complete.
+          completeInstantly();
+          observer.disconnect();
+        }
       },
       { threshold: 0.1 }
     );
@@ -166,26 +217,19 @@ export function DependenciesSection() {
   }, [reducedMotion]);
 
   const toggle = (id: string) => {
-    setOpenIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    setOpenId((prev) => (prev === id ? null : id));
   };
-
-  // Platform currently mid-typing (first one with chars > 0 but not finished).
-  // -1 when typing is idle (before start or fully done).
-  const currentTypingIdx = typedChars.findIndex(
-    (n, i) => n > 0 && n < PLATFORMS[i].name.length
-  );
 
   return (
     <section
       ref={sectionRef}
+      data-header-theme="dark"
       style={{
         backgroundColor: "var(--color-void)",
-        padding: "clamp(32px, 4dvh, 56px) clamp(24px, 6vw, 80px)",
+        paddingTop: "clamp(140px, 18dvh, 200px)",
+        paddingBottom: "37dvh",
+        paddingLeft: "clamp(24px, 6vw, 80px)",
+        paddingRight: "clamp(24px, 6vw, 80px)",
       }}
     >
       {/* Section label */}
@@ -197,7 +241,7 @@ export function DependenciesSection() {
           letterSpacing: "0.1em",
           textTransform: "uppercase",
           color: "var(--color-text-muted)",
-          margin: "0 0 clamp(32px, 5dvh, 56px)",
+          margin: "0 0 clamp(56px, 7dvh, 88px)",
         }}
       >
         Our Dependencies
@@ -210,9 +254,51 @@ export function DependenciesSection() {
       />
 
       {PLATFORMS.map((platform, idx) => {
-        const isOpen = openIds.has(platform.id);
-        const isRevealed = revealed[idx];
-        const showCursor = !reducedMotion && idx === currentTypingIdx && cursorOn;
+        const isOpen      = openId === platform.id;
+        const isRevealed  = revealed[idx];
+        const showCursor  = !reducedMotion && idx === cursorPlatformIdx && cursorOn;
+        const btnHovered  = hoveredButtonId === platform.id;
+
+        // Shared character + cursor rendering — used in both Link and span branches.
+        const nameChars = (
+          <>
+            {platform.name.split("").map((char, ci) => (
+              <span
+                key={ci}
+                style={{
+                  color: reducedMotion || ci < typedChars[idx] ? "inherit" : "transparent",
+                }}
+              >
+                {char}
+              </span>
+            ))}
+            {showCursor && (
+              <span
+                aria-hidden="true"
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  fontSize: "0.7em",
+                  color: "var(--color-accent)",
+                  marginLeft: "0.06em",
+                  verticalAlign: "baseline",
+                }}
+              >
+                |
+              </span>
+            )}
+          </>
+        );
+
+        const nameBaseStyle = {
+          flex: 1,
+          minWidth: 0,
+          fontFamily: "var(--font-display)",
+          fontSize: "clamp(36px, 6vw, 88px)",
+          fontWeight: 450,
+          letterSpacing: "-0.02em",
+          lineHeight: 1.05,
+          gap: "0.22em",
+        };
 
         return (
           <div
@@ -231,16 +317,17 @@ export function DependenciesSection() {
                 display: "flex",
                 alignItems: "center",
                 gap: "12px",
-                padding: "clamp(12px, 1.8dvh, 20px) 0",
+                padding: "clamp(28px, 3.8dvh, 52px) 0",
               }}
             >
-              {/* Numeric index — decorative, not interactive */}
+              {/* Numeric index — brightens when row is open to signal active state */}
               <span
                 aria-hidden="true"
                 style={{
                   fontFamily: "var(--font-mono)",
                   fontSize: "clamp(12px, 1vw, 16px)",
-                  color: "rgba(255,255,255,0.22)",
+                  color: isOpen ? "rgba(255,255,255,0.55)" : "rgba(255,255,255,0.22)",
+                  transition: `color 80ms ${EASE}`,
                   flexShrink: 0,
                   width: "2.5rem",
                   textAlign: "right",
@@ -251,69 +338,27 @@ export function DependenciesSection() {
                 {platform.index}.
               </span>
 
-              {/* ZONE A — Platform name: NAVIGATES to platform page.
-                  Characters rendered in full always (layout-stable), revealed by color.
-                  Hover shows ↗ and brightens. Never expands the accordion. */}
+              {/* ZONE A — Platform name: navigates to platform page.
+                  Hover brightens name and reveals ↗. Never expands the accordion.
+                  When open, inline opacity:1 overrides the opacity-55 class. */}
               <Link
                 href={platform.href}
                 className="group flex items-baseline"
-                style={{
-                  flex: 1,
-                  minWidth: 0,
-                  fontFamily: "var(--font-display)",
-                  fontSize: "clamp(36px, 6vw, 88px)",
-                  fontWeight: 600,
-                  letterSpacing: "-0.02em",
-                  lineHeight: 1.05,
-                  textDecoration: "none",
-                  gap: "0.22em",
-                }}
+                style={{ ...nameBaseStyle, textDecoration: "none" }}
               >
                 <span
                   className="opacity-55 group-hover:opacity-100 transition-opacity duration-[80ms] ease-[cubic-bezier(0,0,0.2,1)]"
-                  style={{ color: "var(--color-text)" }}
+                  style={{
+                    color: "var(--color-text)",
+                    ...(isOpen && { opacity: 1 }),
+                  }}
                 >
-                  {/* All characters always in DOM — color transparent until typed.
-                      This keeps the row height stable (no reflow during typing). */}
-                  {platform.name.split("").map((char, ci) => (
-                    <span
-                      key={ci}
-                      style={{
-                        color:
-                          reducedMotion || ci < typedChars[idx]
-                            ? "inherit"
-                            : "transparent",
-                      }}
-                    >
-                      {char}
-                    </span>
-                  ))}
-                  {/* Blinking cursor — only on the platform currently being typed */}
-                  {showCursor && (
-                    <span
-                      aria-hidden="true"
-                      style={{
-                        fontFamily: "var(--font-mono)",
-                        fontSize: "0.7em",
-                        color: "var(--color-accent)",
-                        marginLeft: "0.06em",
-                        verticalAlign: "baseline",
-                      }}
-                    >
-                      |
-                    </span>
-                  )}
+                  {nameChars}
                 </span>
-
-                {/* ↗ reveals on hover to signal external navigation */}
                 <span
                   aria-hidden="true"
                   className="opacity-0 group-hover:opacity-50 transition-opacity duration-[80ms] ease-[cubic-bezier(0,0,0.2,1)]"
-                  style={{
-                    fontSize: "0.38em",
-                    color: "var(--color-text)",
-                    lineHeight: 1,
-                  }}
+                  style={{ fontSize: "0.38em", color: "var(--color-text)", lineHeight: 1 }}
                 >
                   ↗
                 </span>
@@ -333,29 +378,49 @@ export function DependenciesSection() {
                 /{platform.index}
               </span>
 
-              {/* ZONE B — Toggle button: EXPANDS/COLLAPSES this accordion independently.
-                  Never navigates. Each platform opens/closes on its own. */}
+              {/* ZONE B — Toggle: 44×44 transparent tap area, 40×40 visual box inside.
+                  Hover state via React state (not Tailwind) — inline styles have higher
+                  CSS specificity than class-based rules, so Tailwind hover classes
+                  cannot override inline color/border. */}
               <button
                 type="button"
                 onClick={() => toggle(platform.id)}
                 aria-expanded={isOpen}
                 aria-controls={`deps-${platform.id}`}
                 aria-label={isOpen ? `Collapse ${platform.name}` : `Expand ${platform.name}`}
-                className="flex items-center justify-center hover:border-white/30 hover:text-white transition-colors duration-[80ms] ease-[cubic-bezier(0,0,0.2,1)]"
+                onMouseEnter={() => setHoveredButtonId(platform.id)}
+                onMouseLeave={() => setHoveredButtonId(null)}
                 style={{
                   flexShrink: 0,
-                  width: "40px",
-                  height: "40px",
-                  border: "1px solid rgba(255,255,255,0.15)",
+                  width: "44px",
+                  height: "44px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
                   background: "none",
+                  border: "none",
+                  padding: 0,
                   cursor: "pointer",
-                  color: "rgba(255,255,255,0.5)",
-                  fontFamily: "var(--font-mono)",
-                  fontSize: "20px",
-                  lineHeight: 1,
                 }}
               >
-                {isOpen ? "−" : "+"}
+                <span
+                  aria-hidden="true"
+                  style={{
+                    width: "40px",
+                    height: "40px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    border: `1px solid ${btnHovered ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.15)"}`,
+                    color: btnHovered ? "rgba(255,255,255,1)" : "rgba(255,255,255,0.5)",
+                    transition: `color 80ms ${EASE}, border-color 80ms ${EASE}`,
+                    fontFamily: "var(--font-mono)",
+                    fontSize: "20px",
+                    lineHeight: 1,
+                  }}
+                >
+                  {isOpen ? "−" : "+"}
+                </span>
               </button>
             </div>
 
@@ -379,7 +444,7 @@ export function DependenciesSection() {
                     flexWrap: "wrap",
                     gap: "clamp(24px, 4vw, 64px)",
                     paddingLeft: "calc(2.5rem + 12px)",
-                    paddingBottom: "clamp(24px, 3.5dvh, 48px)",
+                    paddingBottom: "clamp(48px, 6dvh, 80px)",
                     opacity: isOpen ? 1 : 0,
                     transition: reducedMotion
                       ? "none"
@@ -491,10 +556,11 @@ export function DependenciesSection() {
                           {doc.type} — {doc.size}
                         </span>
 
+                        {/* Disabled placeholder — opacity signals unavailability at a glance */}
                         <button
                           type="button"
-                          title="Próximamente"
-                          aria-label={`${doc.name} — próximamente`}
+                          disabled
+                          aria-label={`${doc.name} — not yet available`}
                           style={{
                             fontFamily: "var(--font-mono)",
                             fontSize: "10px",
@@ -506,6 +572,7 @@ export function DependenciesSection() {
                             padding: 0,
                             cursor: "not-allowed",
                             flexShrink: 0,
+                            opacity: 0.35,
                           }}
                         >
                           Download ↓

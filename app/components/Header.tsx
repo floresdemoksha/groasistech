@@ -1,9 +1,17 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useRef, useState } from "react";
 import { IntelligenceVault } from "./IntelligenceVault";
 
 const EASE = "cubic-bezier(0, 0, 0.2, 1)";
+
+const PLATFORM_LINKS = [
+  { name: "GT-AERO", href: "/platforms/gt-aero" },
+  { name: "PHOTON",  href: "/platforms/photon"  },
+  { name: "TELECO",  href: "/platforms/teleco"  },
+  { name: "OTHER",   href: "#"                  },
+] as const;
 
 export function Header() {
   const [isOpen, setIsOpen] = useState(false);
@@ -13,54 +21,116 @@ export function Header() {
   return (
     <>
       <header
-        className="fixed top-3 left-4 right-4 z-50 border border-[var(--color-border)] backdrop-blur-[10px] overflow-hidden"
         style={{
-          backgroundColor: "rgba(38, 40, 45, 0.3)",
-          borderRadius: "0px",
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 50,
+          display: "grid",
+          gridTemplateColumns: "1fr auto 1fr",
+          alignItems: "center",
+          paddingTop: "clamp(44px, 5dvh, 64px)",
+          paddingBottom: "clamp(16px, 1.5dvh, 22px)",
+          paddingLeft: "clamp(24px, 6vw, 80px)",
+          paddingRight: "clamp(24px, 6vw, 80px)",
+          // Sin fondo, sin borde, sin blur — solo texto flotando.
+          // difference: blanco sobre oscuro = blanco; blanco sobre blanco = negro.
+          // Se adapta a cualquier sección, presente o futura, sin lógica de scroll.
+          mixBlendMode: "difference",
         }}
       >
-        <div className="flex items-center justify-between px-[var(--space-4)] py-[var(--space-2)]">
-          {/* Logo / Wordmark */}
-          <div className="text-[var(--color-text)] font-semibold tracking-tight text-base">
-            GROASIS-TECH
-          </div>
+        {/* Left — wordmark */}
+        <Link
+          href="/"
+          style={{
+            fontFamily: "var(--font-mono)",
+            fontSize: "18px",
+            fontWeight: 450,
+            letterSpacing: "0.06em",
+            color: "white",
+            textDecoration: "none",
+          }}
+        >
+          GROASIS-TECH
+        </Link>
 
-          {/* Intelligence Vault Trigger */}
+        {/* Center — platform nav (hidden on mobile, visible md+) */}
+        <nav
+          aria-label="Platform navigation"
+          className="hidden md:flex"
+          style={{ gap: "clamp(24px, 3.5vw, 48px)" }}
+        >
+          {PLATFORM_LINKS.map(({ name, href }) => (
+            <Link
+              key={name}
+              href={href}
+              className="inline-block text-white hover:-translate-y-0.5 transition-transform duration-[120ms] ease-[cubic-bezier(0,0,0.2,1)]"
+              style={{
+                fontFamily: "var(--font-mono)",
+                fontSize: "14px",
+                fontWeight: 450,
+                letterSpacing: "0.08em",
+                textDecoration: "none",
+              }}
+            >
+              {name}
+            </Link>
+          ))}
+        </nav>
+
+        {/* Right — COMPANY trigger (opens Intelligence Vault) */}
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
           <button
             ref={triggerRef}
             type="button"
             onClick={() => setIsOpen((v) => !v)}
             aria-expanded={isOpen}
             aria-label={isOpen ? "Close Intelligence Vault" : "Open Intelligence Vault"}
-            className="group flex items-center justify-center w-10 h-10 text-[var(--color-text)] opacity-70 hover:opacity-100"
-            style={{ transition: `opacity 100ms ${EASE}` }}
+            className="inline-flex items-center text-white"
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: "14px",
+              fontWeight: 450,
+              letterSpacing: "0.08em",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              padding: 0,
+              gap: "5px",
+            }}
           >
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1"
+            COMPANY
+            {/* +/− crossfade — refleja estado del vault */}
+            <span
+              aria-hidden="true"
+              style={{ position: "relative", display: "inline-block", width: "1em", lineHeight: 1 }}
             >
-              {/* Hamburger — visible when closed */}
-              <g style={{ opacity: isOpen ? 0 : 1, transition: `opacity 100ms ${EASE}` }}>
-                <line
-                  x1="3" y1="7" x2="21" y2="7"
-                  className="transition-transform duration-[100ms] ease-[cubic-bezier(0,0,0.2,1)] group-hover:-translate-y-0.5"
-                />
-                <line x1="3" y1="12" x2="21" y2="12" />
-                <line
-                  x1="3" y1="17" x2="21" y2="17"
-                  className="transition-transform duration-[100ms] ease-[cubic-bezier(0,0,0.2,1)] group-hover:translate-y-0.5"
-                />
-              </g>
-              {/* X — visible when open */}
-              <g style={{ opacity: isOpen ? 1 : 0, transition: `opacity 100ms ${EASE}` }}>
-                <line x1="5"  y1="5"  x2="19" y2="19" />
-                <line x1="19" y1="5"  x2="5"  y2="19" />
-              </g>
-            </svg>
+              <span
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  opacity: isOpen ? 0 : 1,
+                  transition: `opacity 120ms ${EASE}`,
+                }}
+              >
+                +
+              </span>
+              <span
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  opacity: isOpen ? 1 : 0,
+                  transition: `opacity 120ms ${EASE}`,
+                }}
+              >
+                −
+              </span>
+            </span>
           </button>
         </div>
       </header>

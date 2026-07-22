@@ -76,6 +76,7 @@ html {
 
   background-color: var(--color-void);
   color: var(--color-text);
+  scroll-snap-type: y proximity;
 }
 
 body {

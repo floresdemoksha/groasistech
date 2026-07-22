@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ScrollIndicator } from "./ScrollIndicator";
 
 const EASE = "cubic-bezier(0, 0, 0.2, 1)";
 
@@ -46,9 +47,14 @@ export function StatementSection() {
     return () => window.removeEventListener("scroll", onScroll);
   }, [reducedMotion]);
 
+  // Visible from the moment the section enters the viewport; fades near the end.
+  // In reducedMotion mode progress is always 0, so we derive visibility directly.
+  const indicatorVisible = reducedMotion ? true : progress < 0.96;
+
   return (
     <section
       ref={sectionRef}
+      data-header-theme="dark"
       style={{
         // reducedMotion: no pinning — section is just one viewport tall, static.
         minHeight: reducedMotion ? undefined : `${SECTION_HEIGHT_VH}dvh`,
@@ -112,6 +118,8 @@ export function StatementSection() {
                 </span>
               ))}
         </p>
+
+        <ScrollIndicator visible={indicatorVisible} />
       </div>
     </section>
   );
